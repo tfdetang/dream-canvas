@@ -15,6 +15,7 @@ export const PRESET_PROVIDERS = [
       {
         id: 'dall-e-3',
         name: 'DALL-E 3',
+        type: 'image',  // 模型类型：text | image | video
         enabled: true,
         sizes: ['1024x1024', '1024x1792', '1792x1024'],
         quality: ['standard', 'hd'],
@@ -23,6 +24,7 @@ export const PRESET_PROVIDERS = [
       {
         id: 'dall-e-2',
         name: 'DALL-E 2',
+        type: 'image',
         enabled: false,
         sizes: ['256x256', '512x512', '1024x1024']
       }
@@ -40,6 +42,7 @@ export const PRESET_PROVIDERS = [
       {
         id: 'imagen-3.0-generate-001',
         name: 'Imagen 3',
+        type: 'image',
         enabled: true,
         sizes: ['1024x1024', '1536x1536']
       }
@@ -57,6 +60,7 @@ export const PRESET_PROVIDERS = [
       {
         id: 'banana-model-1',
         name: 'Banana Model',
+        type: 'image',
         enabled: true,
         sizes: ['1024x1024', '512x512']
       }
@@ -74,6 +78,7 @@ export const PRESET_PROVIDERS = [
       {
         id: 'doubao-seedream-4-5-251128',
         name: 'SeeDream 4.5',
+        type: 'image',
         enabled: true,
         sizes: ['1024x1024', '2048x2048', '1440x2560', '2560x1440']
       }
