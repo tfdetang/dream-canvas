@@ -1,5 +1,6 @@
 import { OpenAIAdapter } from './openai'
 import { DoubaoAdapter } from './doubao'
+import { GeminiAdapter } from './gemini'
 
 // API 格式类型定义
 export const API_FORMATS = {
@@ -11,7 +12,8 @@ export const API_FORMATS = {
 const ADAPTERS = {
   'openai': OpenAIAdapter,
   'banana-pro': OpenAIAdapter,
-  'doubao': DoubaoAdapter
+  'doubao': DoubaoAdapter,
+  'gemini': GeminiAdapter
 }
 
 /**
@@ -46,11 +48,9 @@ export function createAdapterForModel(providerId, modelId, config) {
 
   switch (apiFormat) {
     case API_FORMATS.GEMINI:
-      // TODO: 返回 Gemini 适配器
-      return createProviderAdapter(providerId, config)
+      return new GeminiAdapter(config)
     case API_FORMATS.DOUBAO:
-      // TODO: 返回豆包适配器
-      return createProviderAdapter(providerId, config)
+      return new DoubaoAdapter(config)
     case API_FORMATS.OPENAI:
     default:
       return createProviderAdapter(providerId, config)
