@@ -209,10 +209,44 @@ const providerLabel = computed(() => {
 })
 
 // Get current model config | 获取当前模型配置
-const currentModelConfig = computed(() => getModelConfig(localModel.value))
+const currentModelConfig = computed(() => {
+  // 首先尝试从供应商配置中获取
+  const provider = providers.value.find(p => p.id === nodeProvider.value)
+  if (provider) {
+    const model = provider.models.find(m => m.id === localModel.value)
+    if (model) {
+      return {
+        ...model,
+        sizes: model.sizes || [],
+        quality: model.quality || [],
+        style: model.style || [],
+        defaultParams: {
+          size: model.sizes?.[0],
+          quality: model.quality?.[0]
+        }
+      }
+    }
+  }
+  // 回退到全局配置
+  return getModelConfig(localModel.value)
+})
 
-// Model options from store | 从 store 获取模型选项
-const modelOptions = imageModelOptions
+// Model options from provider | 从供应商获取模型选项
+const modelOptions = computed(() => {
+  const provider = providers.value.find(p => p.id === nodeProvider.value)
+  if (!provider) {
+    // 回退到全局选项
+    return imageModelOptions.value
+  }
+
+  // 只返回已启用的模型
+  return provider.models
+    .filter(m => m.enabled)
+    .map(m => ({
+      key: m.id,
+      label: m.name || m.id
+    }))
+})
 
 // Display model name | 显示模型名称
 const displayModelName = computed(() => {
@@ -222,6 +256,18 @@ const displayModelName = computed(() => {
 
 // Quality options based on model | 基于模型的画质选项
 const qualityOptions = computed(() => {
+  // 首先尝试从供应商配置获取
+  const provider = providers.value.find(p => p.id === nodeProvider.value)
+  if (provider) {
+    const model = provider.models.find(m => m.id === localModel.value)
+    if (model && model.quality && model.quality.length > 0) {
+      return model.quality.map(q => ({
+        key: q,
+        label: q === 'standard' ? '标准' : q === 'hd' ? '高清' : q
+      }))
+    }
+  }
+  // 回退到全局配置
   return getModelQualityOptions(localModel.value)
 })
 
@@ -238,11 +284,32 @@ const displayQuality = computed(() => {
 
 // Size options based on model and quality | 基于模型和画质的尺寸选项
 const sizeOptions = computed(() => {
+  // 首先尝试从供应商配置获取
+  const provider = providers.value.find(p => p.id === nodeProvider.value)
+  if (provider) {
+    const model = provider.models.find(m => m.id === localModel.value)
+    if (model && model.sizes && model.sizes.length > 0) {
+      return model.sizes.map(s => ({
+        key: s,
+        label: s
+      }))
+    }
+  }
+  // 回退到全局配置
   return getModelSizeOptions(localModel.value, localQuality.value)
 })
 
 // Check if model has size options | 检查模型是否有尺寸选项
 const hasSizeOptions = computed(() => {
+  // 优先检查供应商配置
+  const provider = providers.value.find(p => p.id === nodeProvider.value)
+  if (provider) {
+    const model = provider.models.find(m => m.id === localModel.value)
+    if (model) {
+      return model.sizes && model.sizes.length > 0
+    }
+  }
+  // 回退到全局配置检查
   const config = getModelConfig(localModel.value)
   return config?.sizes && config.sizes.length > 0
 })
@@ -257,6 +324,28 @@ const displaySize = computed(() => {
 onMounted(() => {
   // Set default model if not set | 如果未设置则设置默认模型
   if (!localModel.value) {
+    // 尝试从供应商获取第一个启用的模型
+    const provider = providers.value.find(p => p.id === nodeProvider.value)
+    if (provider && provider.models.length > 0) {
+      const firstEnabledModel = provider.models.find(m => m.enabled)
+      if (firstEnabledModel) {
+        localModel.value = firstEnabledModel.id
+        // 设置默认尺寸和质量
+        if (firstEnabledModel.sizes && firstEnabledModel.sizes.length > 0) {
+          localSize.value = firstEnabledModel.sizes[0]
+        }
+        if (firstEnabledModel.quality && firstEnabledModel.quality.length > 0) {
+          localQuality.value = firstEnabledModel.quality[0]
+        }
+        updateNode(props.id, {
+          model: localModel.value,
+          size: localSize.value,
+          quality: localQuality.value
+        })
+        return
+      }
+    }
+    // 回退到全局默认
     localModel.value = DEFAULT_IMAGE_MODEL
     updateNode(props.id, { model: localModel.value })
   }
@@ -314,9 +403,28 @@ const connectedRefImages = computed(() => {
 // Handle model selection | 处理模型选择
 const handleModelSelect = (key) => {
   localModel.value = key
-  // Update size and quality to model's default | 更新为模型默认尺寸和画质
-  const config = getModelConfig(key)
   const updates = { model: key }
+
+  // 优先从供应商配置获取默认参数
+  const provider = providers.value.find(p => p.id === nodeProvider.value)
+  if (provider) {
+    const model = provider.models.find(m => m.id === key)
+    if (model) {
+      if (model.sizes && model.sizes.length > 0) {
+        localSize.value = model.sizes[0]
+        updates.size = model.sizes[0]
+      }
+      if (model.quality && model.quality.length > 0) {
+        localQuality.value = model.quality[0]
+        updates.quality = model.quality[0]
+      }
+      updateNode(props.id, updates)
+      return
+    }
+  }
+
+  // 回退到全局配置
+  const config = getModelConfig(key)
   if (config?.defaultParams?.size) {
     localSize.value = config.defaultParams.size
     updates.size = config.defaultParams.size
