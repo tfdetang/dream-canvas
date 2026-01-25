@@ -1,4 +1,5 @@
 import { OpenAIAdapter } from './openai'
+import { DoubaoAdapter } from './doubao'
 
 // API 格式类型定义
 export const API_FORMATS = {
@@ -10,7 +11,7 @@ export const API_FORMATS = {
 const ADAPTERS = {
   'openai': OpenAIAdapter,
   'banana-pro': OpenAIAdapter,
-  'doubao': OpenAIAdapter  // 后续会替换为 DoubaoAdapter
+  'doubao': DoubaoAdapter
 }
 
 /**
