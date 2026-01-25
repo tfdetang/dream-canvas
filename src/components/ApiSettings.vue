@@ -382,30 +382,88 @@ const handleClear = () => {
 </script>
 
 <style scoped>
-.endpoint-list {
+.provider-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-bottom: 16px;
-  padding: 12px;
-  background: var(--bg-secondary, #f5f5f5);
-  border-radius: 6px;
+  gap: 12px;
 }
 
-.endpoint-item {
+.provider-card {
+  padding: 12px;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 8px;
+  transition: all 0.2s;
+  background: var(--bg-primary, #fff);
+}
+
+.provider-card:hover {
+  border-color: var(--accent-color, #18a058);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.provider-card.active {
+  border-color: var(--accent-color, #18a058);
+  background: var(--bg-accent-light, #f0f9ff);
+}
+
+.provider-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.endpoint-label {
-  font-size: 13px;
-  color: var(--text-secondary, #666);
-  min-width: 70px;
+.provider-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.endpoint-tag {
-  font-family: monospace;
+.provider-icon {
+  font-size: 20px;
+}
+
+.provider-name {
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.provider-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.model-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  background: var(--bg-secondary, #f5f5f5);
+  border-radius: 6px;
+}
+
+.model-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.model-meta {
+  margin-left: 24px;
   font-size: 12px;
+  color: var(--text-secondary, #666);
+}
+
+/* 暗黑模式适配 */
+.dark .provider-card {
+  border-color: var(--border-color, #333);
+  background: var(--bg-primary, #1a1a1a);
+}
+
+.dark .provider-card.active {
+  background: var(--bg-accent-dark, #1a2332);
+}
+
+.dark .model-list {
+  background: var(--bg-secondary, #2a2a2a);
 }
 </style>
