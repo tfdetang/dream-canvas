@@ -7,7 +7,16 @@
       :class="data.selected ? 'border-1 border-blue-500 shadow-lg shadow-blue-500/20' : 'border border-[var(--border-color)]'">
       <!-- Header | 头部 -->
       <div class="flex items-center justify-between px-3 py-2 border-b border-[var(--border-color)]">
-        <span class="text-sm font-medium text-[var(--text-secondary)]">{{ data.label }}</span>
+        <div class="flex items-center gap-2">
+          <span class="text-sm font-medium text-[var(--text-secondary)]">{{ data.label }}</span>
+          <!-- 供应商标签 -->
+          <n-tag
+            size="tiny"
+            :type="nodeProvider === activeProviderId ? 'info' : 'default'"
+          >
+            {{ providerLabel }}
+          </n-tag>
+        </div>
         <div class="flex items-center gap-1">
           <button @click="handleDelete" class="p-1 hover:bg-[var(--bg-tertiary)] rounded transition-colors">
             <n-icon :size="14">
@@ -160,11 +169,13 @@
  */
 import { ref, computed, watch, onMounted } from 'vue'
 import { Handle, Position, useVueFlow } from '@vue-flow/core'
-import { NIcon, NDropdown, NSpin } from 'naive-ui'
+import { NIcon, NDropdown, NSpin, NTag } from 'naive-ui'
 import { ChevronDownOutline, ChevronForwardOutline, CopyOutline, TrashOutline, RefreshOutline, AddOutline } from '@vicons/ionicons5'
 import { useImageGeneration, useApiConfig } from '../../hooks'
 import { updateNode, addNode, addEdge, nodes, edges, duplicateNode, removeNode } from '../../stores/canvas'
 import { imageModelOptions, getModelSizeOptions, getModelQualityOptions, getModelConfig, DEFAULT_IMAGE_MODEL } from '../../stores/models'
+import { providers, activeProviderId } from '@/stores/providers'
+import { createProviderAdapter } from '@/api/providers'
 
 const props = defineProps({
   id: String,
@@ -187,6 +198,15 @@ const showActions = ref(false)
 const localModel = ref(props.data?.model || DEFAULT_IMAGE_MODEL)
 const localSize = ref(props.data?.size || '2048x2048')
 const localQuality = ref(props.data?.quality || 'standard')
+
+// 节点绑定的供应商（创建时确定）
+const nodeProvider = ref(props.data.providerId || activeProviderId.value)
+
+// 节点供应商名称（用于显示）
+const providerLabel = computed(() => {
+  const provider = providers.value.find(p => p.id === nodeProvider.value)
+  return provider?.name || '未知供应商'
+})
 
 // Get current model config | 获取当前模型配置
 const currentModelConfig = computed(() => getModelConfig(localModel.value))
