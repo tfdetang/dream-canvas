@@ -230,9 +230,6 @@ const modelOptions = computed(() => {
 // Get current model config | 获取当前模型配置
 const currentModelConfig = computed(() => getModelConfig(localModel.value))
 
-// Model options from store | 从 store 获取模型选项
-const modelOptions = imageModelOptions
-
 // Display model name | 显示模型名称
 const displayModelName = computed(() => {
   const model = modelOptions.value.find(m => m.key === localModel.value)
