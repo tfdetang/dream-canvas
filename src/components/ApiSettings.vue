@@ -129,18 +129,38 @@
                 :key="model.id"
                 class="model-item"
               >
-                <div class="flex items-center gap-2">
-                  <n-checkbox :value="model.id">
-                    {{ model.name }}
-                  </n-checkbox>
-                  <!-- 模型类型标签 -->
-                  <n-tag
-                    v-if="model.type"
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <n-checkbox :value="model.id">
+                      {{ model.name }}
+                    </n-checkbox>
+                    <!-- 模型类型标签 -->
+                    <n-tag
+                      v-if="model.type"
+                      size="tiny"
+                      :type="getModelTypeLabel(model.type).color"
+                    >
+                      {{ getModelTypeLabel(model.type).icon }} {{ getModelTypeLabel(model.type).label }}
+                    </n-tag>
+                    <!-- API格式标签（仅自定义模型） -->
+                    <n-tag
+                      v-if="model.apiFormat && editingProvider?.type === 'custom'"
+                      size="tiny"
+                      type="info"
+                    >
+                      {{ model.apiFormat }}
+                    </n-tag>
+                  </div>
+                  <!-- 删除模型按钮（仅自定义模型） -->
+                  <n-button
+                    v-if="editingProvider?.type === 'custom'"
+                    text
                     size="tiny"
-                    :type="getModelTypeLabel(model.type).color"
+                    type="error"
+                    @click="handleDeleteModel(model.id)"
                   >
-                    {{ getModelTypeLabel(model.type).icon }} {{ getModelTypeLabel(model.type).label }}
-                  </n-tag>
+                    删除
+                  </n-button>
                 </div>
                 <div v-if="model.sizes" class="model-meta">
                   <n-tag
@@ -153,6 +173,72 @@
               </div>
             </n-checkbox-group>
           </div>
+
+          <!-- 添加自定义模型按钮 -->
+          <n-button
+            dashed
+            block
+            @click="showAddModelForm = true"
+            class="mt-3"
+          >
+            <template #icon>
+              <n-icon><AddOutline /></n-icon>
+            </template>
+            添加自定义模型
+          </n-button>
+
+          <!-- 添加模型表单（对话框） -->
+          <n-modal v-model:show="showAddModelForm" preset="card" title="添加自定义模型" style="width: 500px;">
+            <n-form :model="newModelForm" label-placement="left" label-width="100">
+
+              <!-- 模型ID -->
+              <n-form-item label="模型 ID" required>
+                <n-input
+                  v-model:value="newModelForm.id"
+                  placeholder="例如: gpt-4, dall-e-3"
+                />
+              </n-form-item>
+
+              <!-- 模型名称 -->
+              <n-form-item label="模型名称" required>
+                <n-input
+                  v-model:value="newModelForm.name"
+                  placeholder="例如: GPT-4, DALL-E 3"
+                />
+              </n-form-item>
+
+              <!-- 模型类型 -->
+              <n-form-item label="模型类型" required>
+                <n-select
+                  v-model:value="newModelForm.type"
+                  :options="modelTypeOptions"
+                  placeholder="选择模型类型"
+                />
+              </n-form-item>
+
+              <!-- API格式 -->
+              <n-form-item label="API 格式" required>
+                <n-select
+                  v-model:value="newModelForm.apiFormat"
+                  :options="apiFormatOptions"
+                  placeholder="选择API兼容格式"
+                />
+              </n-form-item>
+
+              <!-- 支持的尺寸 -->
+              <n-form-item label="支持尺寸">
+                <n-dynamic-tags v-model:value="newModelForm.sizes" />
+              </n-form-item>
+
+            </n-form>
+
+            <template #footer>
+              <div class="flex justify-end gap-2">
+                <n-button @click="showAddModelForm = false">取消</n-button>
+                <n-button type="primary" @click="handleAddModel">添加</n-button>
+              </div>
+            </template>
+          </n-modal>
 
           <!-- 测试连接按钮 -->
           <n-form-item class="mt-4">
@@ -195,7 +281,7 @@ import { ref, reactive, watch, computed } from 'vue'
 import {
   NModal, NForm, NFormItem, NInput, NButton, NAlert,
   NDivider, NTag, NTabs, NTabPane, NSelect, NCheckboxGroup,
-  NCheckbox, NIcon
+  NCheckbox, NIcon, NDynamicTags
 } from 'naive-ui'
 import { AddOutline } from '@vicons/ionicons5'
 import { useApiConfig } from '../hooks'
@@ -207,9 +293,12 @@ import {
   toggleModel,
   addCustomProvider,
   removeProvider,
+  addCustomModel,
+  removeModel,
   hasConfiguredProvider
 } from '@/stores/providers'
-import { PRESET_PROVIDERS, MODEL_TYPE_LABELS } from '@/config/imageProviders'
+import { PRESET_PROVIDERS, MODEL_TYPE_LABELS, MODEL_TYPES } from '@/config/imageProviders'
+import { API_FORMATS } from '@/api/providers'
 
 // Props | 属性
 const props = defineProps({
@@ -239,6 +328,33 @@ const editForm = ref({
   baseUrl: '',
   apiKey: '',
   enabledModels: []
+})
+
+// 添加自定义模型表单
+const showAddModelForm = ref(false)
+const newModelForm = ref({
+  id: '',
+  name: '',
+  type: MODEL_TYPES.IMAGE,
+  apiFormat: API_FORMATS.OPENAI,
+  sizes: ['1024x1024']
+})
+
+// 模型类型选项
+const modelTypeOptions = computed(() => {
+  return Object.values(MODEL_TYPES).map(type => ({
+    label: MODEL_TYPE_LABELS[type].label,
+    value: type
+  }))
+})
+
+// API格式选项
+const apiFormatOptions = computed(() => {
+  return [
+    { label: 'OpenAI 兼容 (最常用)', value: API_FORMATS.OPENAI },
+    { label: 'Google Gemini', value: API_FORMATS.GEMINI },
+    { label: '豆包 (火山引擎)', value: API_FORMATS.DOUBAO }
+  ]
 })
 
 // 当前供应商 ID
@@ -356,6 +472,56 @@ const handleDeleteProvider = (providerId) => {
   if (window.confirm('确定要删除此供应商吗？')) {
     removeProvider(providerId)
     window.$message?.success('已删除')
+  }
+}
+
+// 添加自定义模型
+const handleAddModel = () => {
+  if (!editingProviderId.value) {
+    window.$message?.warning('请先选择供应商')
+    return
+  }
+
+  if (!newModelForm.value.id) {
+    window.$message?.warning('请输入模型 ID')
+    return
+  }
+
+  if (!newModelForm.value.name) {
+    window.$message?.warning('请输入模型名称')
+    return
+  }
+
+  // 添加模型到供应商
+  addCustomModel(editingProviderId.value, {
+    id: newModelForm.value.id,
+    name: newModelForm.value.name,
+    type: newModelForm.value.type,
+    apiFormat: newModelForm.value.apiFormat,
+    enabled: true,
+    sizes: newModelForm.value.sizes
+  })
+
+  window.$message?.success('模型添加成功')
+
+  // 重置表单并关闭对话框
+  newModelForm.value = {
+    id: '',
+    name: '',
+    type: MODEL_TYPES.IMAGE,
+    apiFormat: API_FORMATS.OPENAI,
+    sizes: ['1024x1024']
+  }
+  showAddModelForm.value = false
+}
+
+// 删除模型
+const handleDeleteModel = (modelId) => {
+  if (!editingProviderId.value) return
+
+  if (window.confirm('确定要删除此模型吗？')) {
+    removeModel(editingProviderId.value, modelId)
+    window.$message?.success('模型已删除')
   }
 }
 
