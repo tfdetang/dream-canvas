@@ -6,31 +6,7 @@
       :class="data.selected ? 'border-1 border-blue-500 shadow-lg shadow-blue-500/20' : 'border border-[var(--border-color)]'">
       <!-- Header | 头部 -->
       <div class="flex items-center justify-between px-3 py-2 border-b border-[var(--border-color)]">
-        <div class="flex items-center gap-2">
-          <span class="text-sm font-medium text-[var(--text-secondary)]">{{ data.label || '视频生成' }}</span>
-          <!-- 供应商标签（可点击切换） -->
-          <n-dropdown
-            v-if="switchableProviderOptions.length > 0"
-            :options="switchableProviderOptions"
-            @select="handleProviderSwitch"
-          >
-            <n-tag
-              size="tiny"
-              :type="nodeProvider === activeProviderId ? 'info' : 'default'"
-              style="cursor: pointer"
-              hoverable
-            >
-              {{ providerLabel }}
-            </n-tag>
-          </n-dropdown>
-          <n-tag
-            v-else
-            size="tiny"
-            type="warning"
-          >
-            {{ providerLabel }}
-          </n-tag>
-        </div>
+        <span class="text-sm font-medium text-[var(--text-secondary)]">{{ data.label || '视频生成' }}</span>
         <div class="flex items-center gap-1">
           <button @click="handleDelete" class="p-1 hover:bg-[var(--bg-tertiary)] rounded transition-colors">
             <n-icon :size="14">
@@ -166,9 +142,9 @@ import { NIcon, NDropdown, NSpin, NTag } from 'naive-ui'
 import { ChevronForwardOutline, ChevronDownOutline, TrashOutline, VideocamOutline, CopyOutline } from '@vicons/ionicons5'
 import { useVideoGeneration, useApiConfig } from '../../hooks'
 import { updateNode, removeNode, duplicateNode, addNode, addEdge, nodes, edges } from '../../stores/canvas'
-import { videoModelOptions, getModelRatioOptions, getModelDurationOptions, getModelConfig, DEFAULT_VIDEO_MODEL } from '../../stores/models'
-import { providers, activeProviderId, setActiveProvider } from '@/stores/providers'
-import { PRESET_PROVIDERS } from '@/config/imageProviders'
+import { getModelRatioOptions, getModelDurationOptions, getModelConfig, DEFAULT_VIDEO_MODEL } from '../../stores/models'
+import { providers, activeProviderId } from '@/stores/providers'
+import { MODEL_TYPES } from '@/config/imageProviders'
 
 const props = defineProps({
   id: String,
@@ -191,47 +167,6 @@ const showActions = ref(false)
 const localModel = ref(props.data?.model || DEFAULT_VIDEO_MODEL)
 const localRatio = ref(props.data?.ratio || '16:9')
 const localDuration = ref(props.data?.dur || 5)
-
-// 节点绑定的供应商（创建时确定）
-const nodeProvider = ref(props.data.providerId || activeProviderId.value)
-
-// 节点供应商名称（用于显示）
-const providerLabel = computed(() => {
-  const provider = providers.value.find(p => p.id === nodeProvider.value)
-  return provider?.name || '未知供应商'
-})
-
-// 可切换的供应商选项（只显示已配置的）
-const switchableProviderOptions = computed(() => {
-  return providers.value
-    .filter(p => p.enabled)
-    .map(p => ({
-      label: p.name,
-      key: p.id
-    }))
-})
-
-// 处理供应商切换
-const handleProviderSwitch = (providerId) => {
-  nodeProvider.value = providerId
-  const provider = providers.value.find(p => p.id === providerId)
-
-  if (provider) {
-    // 切换到该供应商的第一个可用模型
-    const firstEnabledModel = provider.models.find(m => m.enabled)
-    if (firstEnabledModel) {
-      localModel.value = firstEnabledModel.id
-    }
-
-    // 更新节点数据
-    updateNode(props.id, {
-      providerId: providerId,
-      model: localModel.value
-    })
-
-    window.$message?.success(`已切换到 ${provider.name}`)
-  }
-}
 
 // Get connected images with roles | 获取连接的图片及其角色
 const connectedImages = computed(() => {
@@ -270,8 +205,30 @@ const imagesByRole = computed(() => {
 // Get current model config | 获取当前模型配置
 const currentModelConfig = computed(() => getModelConfig(localModel.value))
 
-// Model options from store | 从 store 获取模型选项
-const modelOptions = videoModelOptions
+// 从所有已配置供应商获取视频模型选项
+const modelOptions = computed(() => {
+  const allModels = []
+
+  // 遍历所有已启用的供应商
+  providers.value.forEach(provider => {
+    if (!provider.enabled || !provider.models) return
+
+    // 收集该供应商的已启用视频模型
+    provider.models
+      .filter(m => m.enabled && m.type === MODEL_TYPES.VIDEO)
+      .forEach(m => {
+        allModels.push({
+          key: m.id,
+          label: m.name,
+          type: m.type,
+          providerId: provider.id,
+          providerName: provider.name
+        })
+      })
+  })
+
+  return allModels.length > 0 ? allModels : [{ key: 'default-video', label: '默认视频模型', type: MODEL_TYPES.VIDEO }]
+})
 
 // Display model name | 显示模型名称
 const displayModelName = computed(() => {
