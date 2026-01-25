@@ -5,6 +5,7 @@
 import { ref, computed, watch } from 'vue'
 import { setBaseUrl as setRequestBaseUrl } from '@/utils'
 import { DEFAULT_API_BASE_URL, STORAGE_KEYS } from '@/utils'
+import { hasConfiguredProvider } from '@/stores/providers'
 
 /**
  * Get stored value from localStorage | 从 localStorage 获取存储值
@@ -38,8 +39,11 @@ const setStored = (key, value) => {
 export const useApiConfig = () => {
   const apiKey = ref(getStored(STORAGE_KEYS.API_KEY))
   const baseUrl = ref(getStored(STORAGE_KEYS.BASE_URL, DEFAULT_API_BASE_URL))
-  
-  const isConfigured = computed(() => !!apiKey.value)
+
+  // Check both old system (apiKey) and new system (hasConfiguredProvider)
+  const isConfigured = computed(() => {
+    return !!apiKey.value || hasConfiguredProvider.value
+  })
 
   // Watch and sync changes | 监听并同步变化
   watch(apiKey, (newKey) => {
