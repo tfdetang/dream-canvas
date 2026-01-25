@@ -1,80 +1,176 @@
 <template>
-  <!-- API Settings Modal | API 设置弹窗 -->
-  <n-modal v-model:show="showModal" preset="card" title="API 设置" style="width: 480px;">
-    <n-form ref="formRef" :model="formData" label-placement="left" label-width="80">
-      
-      <n-form-item label="Base URL" path="baseUrl">
-        <n-input 
-        v-model:value="formData.baseUrl" 
-        placeholder="https://api.chatfire.site/v1"
-        />
-      </n-form-item>
-      <n-form-item label="API Key" path="apiKey">
-        <n-input 
-          v-model:value="formData.apiKey" 
-          type="password"
-          show-password-on="click"
-          placeholder="请输入 API Key"
-        />
-      </n-form-item>
+  <n-modal v-model:show="showModal" preset="card" title="模型供应商配置" style="width: 600px;">
+    <n-tabs v-model:value="activeTab" type="line">
 
-      <!-- 三方渠道端点配置 -->
-      <n-divider title-placement="left" class="!my-3">
-        <span class="text-xs text-[var(--text-secondary)]">端点路径</span>
-      </n-divider>
-      
-      <div class="endpoint-list">
-        <div class="endpoint-item">
-          <span class="endpoint-label">问答</span>
-          <n-tag size="small" type="info" class="endpoint-tag">/chat/completions</n-tag>
-        </div>
-        <div class="endpoint-item">
-          <span class="endpoint-label">生图</span>
-          <n-tag size="small" type="success" class="endpoint-tag">/images/generations</n-tag>
-        </div>
-        <div class="endpoint-item">
-          <span class="endpoint-label">视频生成</span>
-          <n-tag size="small" type="warning" class="endpoint-tag">/videos</n-tag>
-        </div>
-        <div class="endpoint-item">
-          <span class="endpoint-label">视频查询</span>
-          <n-tag size="small" type="warning" class="endpoint-tag">/videos/{taskId}</n-tag>
-        </div>
-      </div>
+      <!-- Tab 1: 供应商管理 -->
+      <n-tab-pane name="providers" tab="供应商管理">
 
-      <n-alert v-if="!isConfigured" type="warning" title="未配置" class="mb-4">
-        <div class="flex flex-col gap-2">
-          <p>请配置 API Key 以使用 AI 功能</p>
-          <a 
-            href="https://api.chatfire.site/login?inviteCode=EEE80324" 
-            target="_blank"
-            class="text-[var(--accent-color)] hover:underline text-sm flex items-center gap-1"
+        <!-- 当前激活的供应商 -->
+        <div class="mb-4">
+          <div class="text-sm text-gray-600 dark:text-gray-400 mb-2">当前使用的供应商：</div>
+          <n-select
+            v-model:value="currentProviderId"
+            :options="providerOptions"
+            :disabled="!hasConfiguredProvider"
+            placeholder="请先配置至少一个供应商"
+            @update:value="handleProviderSwitch"
+          />
+        </div>
+
+        <n-divider />
+
+        <!-- 供应商列表 -->
+        <div class="provider-list">
+          <div
+            v-for="provider in providers"
+            :key="provider.id"
+            class="provider-card"
+            :class="{ 'active': provider.id === currentProviderId }"
           >
-            🔗 点击获取 API Key
-            <span class="text-xs">（新用户注册）</span>
-          </a>
+            <div class="provider-header">
+              <div class="provider-info">
+                <span class="provider-icon">{{ getProviderIcon(provider.id) }}</span>
+                <span class="provider-name">{{ provider.name }}</span>
+                <n-tag
+                  v-if="provider.enabled"
+                  size="small"
+                  type="success"
+                >
+                  已配置
+                </n-tag>
+                <n-tag
+                  v-else
+                  size="small"
+                  type="warning"
+                >
+                  未配置
+                </n-tag>
+              </div>
+
+              <div class="provider-actions">
+                <n-button
+                  text
+                  size="small"
+                  @click="selectProviderToEdit(provider.id)"
+                >
+                  配置
+                </n-button>
+                <n-button
+                  v-if="provider.type === 'custom'"
+                  text
+                  size="small"
+                  type="error"
+                  @click="handleDeleteProvider(provider.id)"
+                >
+                  删除
+                </n-button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 添加自定义供应商按钮 -->
+          <n-button
+            dashed
+            block
+            @click="handleAddCustomProvider"
+            class="mt-3"
+          >
+            <template #icon>
+              <n-icon><AddOutline /></n-icon>
+            </template>
+            添加自定义供应商
+          </n-button>
         </div>
-      </n-alert>
+      </n-tab-pane>
 
-      <n-alert v-else type="success" title="已配置" class="mb-4">
-        API 已就绪，可以使用 AI 功能
-      </n-alert>
-    </n-form>
+      <!-- Tab 2: 供应商配置详情 -->
+      <n-tab-pane
+        v-if="editingProviderId"
+        name="config"
+        :tab="`配置 ${editingProvider?.name}`"
+      >
+        <n-form :model="editForm" label-placement="left" label-width="100">
 
+          <!-- Base URL（自定义供应商或高级模式） -->
+          <n-form-item
+            v-if="editingProvider?.type === 'custom' || showAdvanced"
+            label="Base URL"
+          >
+            <n-input
+              v-model:value="editForm.baseUrl"
+              placeholder="https://api.example.com/v1"
+            />
+          </n-form-item>
+
+          <!-- API Key -->
+          <n-form-item label="API Key" required>
+            <n-input
+              v-model:value="editForm.apiKey"
+              type="password"
+              show-password-on="click"
+              :placeholder="getApiKeyPlaceholder(editingProvider?.id)"
+            />
+          </n-form-item>
+
+          <!-- 高级选项切换（预设供应商） -->
+          <n-form-item v-if="editingProvider?.type === 'preset'">
+            <n-checkbox v-model:checked="showAdvanced">
+              显示高级选项（自定义 Base URL）
+            </n-checkbox>
+          </n-form-item>
+
+          <n-divider title-placement="left">可用模型</n-divider>
+
+          <!-- 模型列表 -->
+          <div class="model-list">
+            <n-checkbox-group v-model:value="editForm.enabledModels">
+              <div
+                v-for="model in editingProvider?.models"
+                :key="model.id"
+                class="model-item"
+              >
+                <n-checkbox :value="model.id">
+                  {{ model.name }}
+                </n-checkbox>
+                <div v-if="model.sizes" class="model-meta">
+                  <n-tag
+                    size="tiny"
+                    :bordered="false"
+                  >
+                    {{ model.sizes.join(', ') }}
+                  </n-tag>
+                </div>
+              </div>
+            </n-checkbox-group>
+          </div>
+
+          <!-- 测试连接按钮 -->
+          <n-form-item class="mt-4">
+            <n-button
+              type="primary"
+              :loading="testing"
+              @click="handleTestConnection"
+            >
+              测试连接
+            </n-button>
+          </n-form-item>
+
+        </n-form>
+      </n-tab-pane>
+
+    </n-tabs>
+
+    <!-- Footer -->
     <template #footer>
-      <div class="flex justify-between items-center">
-        <a 
-          href="https://api.chatfire.site/login?inviteCode=EEE80324" 
-          target="_blank"
-          class="text-xs text-[var(--text-secondary)] hover:text-[var(--accent-color)] transition-colors"
+      <div class="flex justify-end gap-2">
+        <n-button @click="showModal = false">取消</n-button>
+        <n-button
+          v-if="editingProviderId"
+          type="primary"
+          @click="handleSaveConfig"
         >
-          没有 API Key？点击注册
-        </a>
-        <div class="flex gap-2">
-          <n-button @click="handleClear" tertiary>清除配置</n-button>
-          <n-button @click="showModal = false">取消</n-button>
-          <n-button type="primary" @click="handleSave">保存</n-button>
-        </div>
+          保存配置
+        </n-button>
       </div>
     </template>
   </n-modal>
