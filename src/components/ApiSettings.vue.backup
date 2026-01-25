@@ -85,25 +85,9 @@
  * API Settings Component | API 设置组件
  * Modal for configuring API key and base URL
  */
-import { ref, reactive, watch, computed } from 'vue'
-import {
-  NModal, NForm, NFormItem, NInput, NButton, NAlert,
-  NDivider, NTag, NTabs, NTabPane, NSelect, NCheckboxGroup,
-  NCheckbox, NIcon
-} from 'naive-ui'
-import { AddOutline } from '@vicons/ionicons5'
+import { ref, reactive, watch } from 'vue'
+import { NModal, NForm, NFormItem, NInput, NButton, NAlert, NDivider, NTag } from 'naive-ui'
 import { useApiConfig } from '../hooks'
-import {
-  providers,
-  activeProviderId,
-  setActiveProvider,
-  updateProvider,
-  toggleModel,
-  addCustomProvider,
-  removeProvider,
-  hasConfiguredProvider
-} from '@/stores/providers'
-import { PRESET_PROVIDERS } from '@/config/imageProviders'
 
 // Props | 属性
 const props = defineProps({
@@ -122,38 +106,7 @@ const { apiKey, baseUrl, isConfigured, setApiKey, setBaseUrl, clear: clearConfig
 // Modal visibility | 弹窗可见性
 const showModal = ref(props.show)
 
-// Tab 控制
-const activeTab = ref('providers')
-const editingProviderId = ref(null)
-const showAdvanced = ref(false)
-const testing = ref(false)
-
-// 编辑表单
-const editForm = ref({
-  baseUrl: '',
-  apiKey: '',
-  enabledModels: []
-})
-
-// 当前供应商 ID
-const currentProviderId = ref(activeProviderId.value)
-
-// 供应商选项（只包含已配置的）
-const providerOptions = computed(() => {
-  return providers.value
-    .filter(p => p.enabled)
-    .map(p => ({
-      label: p.name,
-      value: p.id
-    }))
-})
-
-// 当前编辑的供应商
-const editingProvider = computed(() => {
-  return providers.value.find(p => p.id === editingProviderId.value)
-})
-
-// Form data | 表单数据（保留用于向后兼容）
+// Form data | 表单数据
 const formData = reactive({
   apiKey: apiKey.value,
   baseUrl: baseUrl.value
