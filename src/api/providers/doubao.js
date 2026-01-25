@@ -2,6 +2,9 @@ import { BaseProviderAdapter } from './base'
 
 export class DoubaoAdapter extends BaseProviderAdapter {
   async generateImage({ prompt, model, size, referenceImages = [] }) {
+    // 验证参数
+    this.validateParams({ prompt, model, referenceImages })
+
     const data = {
       model,
       prompt,
@@ -21,6 +24,9 @@ export class DoubaoAdapter extends BaseProviderAdapter {
     }
 
     const response = await this.sendRequest('/images/generations', data)
+
+    // 验证响应
+    this.validateResponse(response, 'data')
 
     return response.data.map(img => ({ url: img.url }))
   }

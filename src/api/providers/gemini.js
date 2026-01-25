@@ -2,6 +2,9 @@ import { BaseProviderAdapter } from './base'
 
 export class GeminiAdapter extends BaseProviderAdapter {
   async generateImage({ prompt, model, size, referenceImages = [] }) {
+    // 验证参数
+    this.validateParams({ prompt, model, referenceImages })
+
     // Gemini 使用不同的 endpoint 格式
     const endpoint = `/models/${model}:generateContent`
 
@@ -43,6 +46,9 @@ export class GeminiAdapter extends BaseProviderAdapter {
 
     const response = await this.sendRequest(endpoint, data)
 
+    // 验证响应
+    this.validateResponse(response, 'candidates')
+
     // 解析 Gemini 响应格式
     // Gemini 返回 base64 图片在 response.candidates[0].content.parts[0].inlineData.data
     const candidates = response.candidates || []
@@ -60,7 +66,7 @@ export class GeminiAdapter extends BaseProviderAdapter {
       }
     }
 
-    throw new Error('No image generated in Gemini response')
+    throw new Error('Gemini 未生成任何图片，请重试')
   }
 
   /**
