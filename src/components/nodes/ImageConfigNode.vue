@@ -7,7 +7,16 @@
       :class="data.selected ? 'border-1 border-blue-500 shadow-lg shadow-blue-500/20' : 'border border-[var(--border-color)]'">
       <!-- Header | 头部 -->
       <div class="flex items-center justify-between px-3 py-2 border-b border-[var(--border-color)]">
-        <span class="text-sm font-medium text-[var(--text-secondary)]">{{ data.label }}</span>
+        <div class="flex items-center gap-2">
+          <span class="text-sm font-medium text-[var(--text-secondary)]">{{ data.label }}</span>
+          <!-- 供应商标签 -->
+          <n-tag
+            size="tiny"
+            :type="nodeProvider === activeProviderId ? 'info' : 'default'"
+          >
+            {{ providerLabel }}
+          </n-tag>
+        </div>
         <div class="flex items-center gap-1">
           <button @click="handleDelete" class="p-1 hover:bg-[var(--bg-tertiary)] rounded transition-colors">
             <n-icon :size="14">
@@ -160,11 +169,14 @@
  */
 import { ref, computed, watch, onMounted } from 'vue'
 import { Handle, Position, useVueFlow } from '@vue-flow/core'
-import { NIcon, NDropdown, NSpin } from 'naive-ui'
+import { NIcon, NDropdown, NSpin, NTag } from 'naive-ui'
 import { ChevronDownOutline, ChevronForwardOutline, CopyOutline, TrashOutline, RefreshOutline, AddOutline } from '@vicons/ionicons5'
 import { useImageGeneration, useApiConfig } from '../../hooks'
 import { updateNode, addNode, addEdge, nodes, edges, duplicateNode, removeNode } from '../../stores/canvas'
-import { getImageModels, getModelById } from '@/stores/providers'
+import { getModelSizeOptions, getModelQualityOptions, getModelConfig, DEFAULT_IMAGE_MODEL } from '../../stores/models'
+import { providers, activeProviderId } from '@/stores/providers'
+import { createProviderAdapter } from '@/api/providers'
+import { MODEL_TYPES } from '@/config/imageProviders'
 
 const props = defineProps({
   id: String,
@@ -184,42 +196,52 @@ const { loading, error, images: generatedImages, generate } = useImageGeneration
 const showActions = ref(false)
 
 // Local state | 本地状态
-const localModel = ref(props.data?.model || '')
-const localSize = ref(props.data?.size || '1024x1024')
+const localModel = ref(props.data?.model || DEFAULT_IMAGE_MODEL)
+const localSize = ref(props.data?.size || '2048x2048')
 const localQuality = ref(props.data?.quality || 'standard')
 
-// Get all available image models (cross-providers) | 获取所有可用的图像模型（跨供应商）
-const modelOptions = computed(() => {
-  const models = getImageModels()
-  return models.map(m => ({
-    key: m.id,
-    label: `${m.name} (${m.providerName})`,
-    // 保存完整模型信息用于后续处理
-    modelData: m
-  }))
+// 节点绑定的供应商（创建时确定）
+const nodeProvider = ref(props.data.providerId || activeProviderId.value)
+
+// 节点供应商名称（用于显示）
+const providerLabel = computed(() => {
+  const provider = providers.value.find(p => p.id === nodeProvider.value)
+  return provider?.name || '未知供应商'
 })
+
+// 从供应商配置获取模型选项（只显示 image 类型的模型）
+const modelOptions = computed(() => {
+  const provider = providers.value.find(p => p.id === nodeProvider.value)
+
+  if (!provider || !provider.models) {
+    return []
+  }
+
+  // 过滤出 image 类型的已启用模型
+  return provider.models
+    .filter(m => m.enabled && m.type === MODEL_TYPES.IMAGE)
+    .map(m => ({
+      key: m.id,
+      label: m.name,
+      type: m.type
+    }))
+})
+
+// Get current model config | 获取当前模型配置
+const currentModelConfig = computed(() => getModelConfig(localModel.value))
+
+// Model options from store | 从 store 获取模型选项
+const modelOptions = imageModelOptions
 
 // Display model name | 显示模型名称
 const displayModelName = computed(() => {
   const model = modelOptions.value.find(m => m.key === localModel.value)
-  return model?.label || '选择模型'
-})
-
-// Get current model info | 获取当前模型信息
-const currentModelInfo = computed(() => {
-  return getModelById(localModel.value)
+  return model?.label || localModel.value || '选择模型'
 })
 
 // Quality options based on model | 基于模型的画质选项
 const qualityOptions = computed(() => {
-  const modelInfo = currentModelInfo.value
-  if (modelInfo?.quality && modelInfo.quality.length > 0) {
-    return modelInfo.quality.map(q => ({
-      key: q,
-      label: q === 'standard' ? '标准' : q === 'hd' ? '高清' : q
-    }))
-  }
-  return []
+  return getModelQualityOptions(localModel.value)
 })
 
 // Check if model has quality options | 检查模型是否有画质选项
@@ -233,22 +255,15 @@ const displayQuality = computed(() => {
   return option?.label || '标准画质'
 })
 
-// Size options based on model | 基于模型的尺寸选项
+// Size options based on model and quality | 基于模型和画质的尺寸选项
 const sizeOptions = computed(() => {
-  const modelInfo = currentModelInfo.value
-  if (modelInfo?.sizes && modelInfo.sizes.length > 0) {
-    return modelInfo.sizes.map(s => ({
-      key: s,
-      label: s
-    }))
-  }
-  return []
+  return getModelSizeOptions(localModel.value, localQuality.value)
 })
 
 // Check if model has size options | 检查模型是否有尺寸选项
 const hasSizeOptions = computed(() => {
-  const modelInfo = currentModelInfo.value
-  return modelInfo?.sizes && modelInfo.sizes.length > 0
+  const config = getModelConfig(localModel.value)
+  return config?.sizes && config.sizes.length > 0
 })
 
 // Display size with label | 显示尺寸（带标签）
@@ -261,23 +276,8 @@ const displaySize = computed(() => {
 onMounted(() => {
   // Set default model if not set | 如果未设置则设置默认模型
   if (!localModel.value) {
-    const models = getImageModels()
-    if (models.length > 0) {
-      const firstModel = models[0]
-      localModel.value = firstModel.id
-      // 设置默认尺寸和质量
-      if (firstModel.sizes && firstModel.sizes.length > 0) {
-        localSize.value = firstModel.sizes[0]
-      }
-      if (firstModel.quality && firstModel.quality.length > 0) {
-        localQuality.value = firstModel.quality[0]
-      }
-      updateNode(props.id, {
-        model: localModel.value,
-        size: localSize.value,
-        quality: localQuality.value
-      })
-    }
+    localModel.value = DEFAULT_IMAGE_MODEL
+    updateNode(props.id, { model: localModel.value })
   }
 })
 
@@ -333,21 +333,18 @@ const connectedRefImages = computed(() => {
 // Handle model selection | 处理模型选择
 const handleModelSelect = (key) => {
   localModel.value = key
+  // Update size and quality to model's default | 更新为模型默认尺寸和画质
+  const config = getModelConfig(key)
   const updates = { model: key }
-
-  // 使用 getModelById 获取模型信息
-  const modelInfo = getModelById(key)
-  if (modelInfo) {
-    if (modelInfo.sizes && modelInfo.sizes.length > 0) {
-      localSize.value = modelInfo.sizes[0]
-      updates.size = modelInfo.sizes[0]
-    }
-    if (modelInfo.quality && modelInfo.quality.length > 0) {
-      localQuality.value = modelInfo.quality[0]
-      updates.quality = modelInfo.quality[0]
-    }
-    updateNode(props.id, updates)
+  if (config?.defaultParams?.size) {
+    localSize.value = config.defaultParams.size
+    updates.size = config.defaultParams.size
   }
+  if (config?.defaultParams?.quality) {
+    localQuality.value = config.defaultParams.quality
+    updates.quality = config.defaultParams.quality
+  }
+  updateNode(props.id, updates)
 }
 
 // Handle quality selection | 处理画质选择
@@ -494,22 +491,22 @@ const handleGenerate = async (mode = 'auto') => {
   }, 50)
 
   try {
-    // 使用 getModelById 根据模型 ID 自动查找供应商配置
-    const modelInfo = getModelById(localModel.value)
+    // 获取当前节点使用的供应商配置
+    const provider = providers.value.find(p => p.id === nodeProvider.value)
 
-    if (!modelInfo) {
-      throw new Error(`模型 ${localModel.value} 配置不存在`)
+    if (!provider) {
+      throw new Error('供应商配置不存在')
     }
 
-    if (!modelInfo.apiKey) {
+    if (!provider.enabled || !provider.apiKey) {
       throw new Error('供应商未配置或 API Key 缺失')
     }
 
-    // 创建适配器（使用模型所属的供应商）
-    const adapter = createProviderAdapter(modelInfo.providerId, {
-      apiKey: modelInfo.apiKey,
-      baseUrl: modelInfo.baseUrl,
-      models: []  // 不需要传递模型列表
+    // 创建适配器
+    const adapter = createProviderAdapter(nodeProvider.value, {
+      apiKey: provider.apiKey,
+      baseUrl: provider.baseUrl,
+      models: provider.models
     })
 
     // 准备参考图数据
@@ -538,7 +535,7 @@ const handleGenerate = async (mode = 'auto') => {
         loading: false,
         label: '文生图',
         model: localModel.value,
-        providerId: modelInfo.providerId,
+        providerId: nodeProvider.value,
         updatedAt: Date.now()
       })
 
@@ -546,7 +543,7 @@ const handleGenerate = async (mode = 'auto') => {
       updateNode(props.id, {
         executed: true,
         outputNodeId: imageNodeId,
-        providerId: modelInfo.providerId,
+        providerId: nodeProvider.value,
         model: localModel.value
       })
     }
