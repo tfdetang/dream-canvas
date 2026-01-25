@@ -7,16 +7,7 @@
       :class="data.selected ? 'border-1 border-blue-500 shadow-lg shadow-blue-500/20' : 'border border-[var(--border-color)]'">
       <!-- Header | 头部 -->
       <div class="flex items-center justify-between px-3 py-2 border-b border-[var(--border-color)]">
-        <div class="flex items-center gap-2">
-          <span class="text-sm font-medium text-[var(--text-secondary)]">{{ data.label }}</span>
-          <!-- 供应商标签 -->
-          <n-tag
-            size="tiny"
-            :type="nodeProvider === activeProviderId ? 'info' : 'default'"
-          >
-            {{ providerLabel }}
-          </n-tag>
-        </div>
+        <span class="text-sm font-medium text-[var(--text-secondary)]">{{ data.label }}</span>
         <div class="flex items-center gap-1">
           <button @click="handleDelete" class="p-1 hover:bg-[var(--bg-tertiary)] rounded transition-colors">
             <n-icon :size="14">
@@ -209,22 +200,29 @@ const providerLabel = computed(() => {
   return provider?.name || '未知供应商'
 })
 
-// 从供应商配置获取模型选项（只显示 image 类型的模型）
+// 从所有已配置供应商获取图像模型选项
 const modelOptions = computed(() => {
-  const provider = providers.value.find(p => p.id === nodeProvider.value)
+  const allModels = []
 
-  if (!provider || !provider.models) {
-    return []
-  }
+  // 遍历所有已启用的供应商
+  providers.value.forEach(provider => {
+    if (!provider.enabled || !provider.models) return
 
-  // 过滤出 image 类型的已启用模型
-  return provider.models
-    .filter(m => m.enabled && m.type === MODEL_TYPES.IMAGE)
-    .map(m => ({
-      key: m.id,
-      label: m.name,
-      type: m.type
-    }))
+    // 收集该供应商的已启用图像模型
+    provider.models
+      .filter(m => m.enabled && m.type === MODEL_TYPES.IMAGE)
+      .forEach(m => {
+        allModels.push({
+          key: m.id,
+          label: m.name,
+          type: m.type,
+          providerId: provider.id,
+          providerName: provider.name
+        })
+      })
+  })
+
+  return allModels
 })
 
 // Get current model config | 获取当前模型配置
@@ -488,22 +486,31 @@ const handleGenerate = async (mode = 'auto') => {
   }, 50)
 
   try {
-    // 获取当前节点使用的供应商配置
-    const provider = providers.value.find(p => p.id === nodeProvider.value)
+    // 根据选择的模型动态查找供应商
+    let targetProvider = null
+    for (const provider of providers.value) {
+      if (!provider.enabled || !provider.models) continue
 
-    if (!provider) {
-      throw new Error('供应商配置不存在')
+      const model = provider.models.find(m => m.id === localModel.value)
+      if (model) {
+        targetProvider = provider
+        break
+      }
     }
 
-    if (!provider.enabled || !provider.apiKey) {
-      throw new Error('供应商未配置或 API Key 缺失')
+    if (!targetProvider) {
+      throw new Error('未找到该模型对应的供应商，请检查供应商配置')
+    }
+
+    if (!targetProvider.apiKey) {
+      throw new Error('供应商 API Key 缺失')
     }
 
     // 创建适配器
-    const adapter = createProviderAdapter(nodeProvider.value, {
-      apiKey: provider.apiKey,
-      baseUrl: provider.baseUrl,
-      models: provider.models
+    const adapter = createProviderAdapter(targetProvider.id, {
+      apiKey: targetProvider.apiKey,
+      baseUrl: targetProvider.baseUrl,
+      models: targetProvider.models
     })
 
     // 准备参考图数据
@@ -532,7 +539,7 @@ const handleGenerate = async (mode = 'auto') => {
         loading: false,
         label: '文生图',
         model: localModel.value,
-        providerId: nodeProvider.value,
+        providerId: targetProvider.id,
         updatedAt: Date.now()
       })
 
@@ -540,7 +547,7 @@ const handleGenerate = async (mode = 'auto') => {
       updateNode(props.id, {
         executed: true,
         outputNodeId: imageNodeId,
-        providerId: nodeProvider.value,
+        providerId: targetProvider.id,
         model: localModel.value
       })
     }
