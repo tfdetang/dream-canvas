@@ -472,44 +472,72 @@ const handleGenerate = async (mode = 'auto') => {
   }, 50)
 
   try {
-    // Build request params | 构建请求参数
-    const params = {
+    // 获取当前节点使用的供应商配置
+    const provider = providers.value.find(p => p.id === nodeProvider.value)
+
+    if (!provider) {
+      throw new Error('供应商配置不存在')
+    }
+
+    if (!provider.enabled || !provider.apiKey) {
+      throw new Error('供应商未配置或 API Key 缺失')
+    }
+
+    // 创建适配器
+    const adapter = createProviderAdapter(nodeProvider.value, {
+      apiKey: provider.apiKey,
+      baseUrl: provider.baseUrl,
+      models: provider.models
+    })
+
+    // 准备参考图数据
+    const referenceImages = refImages.map(img => {
+      // 如果是 base64 格式
+      if (img.startsWith('data:image')) {
+        return { base64: img }
+      }
+      // 如果是 URL 格式
+      return { url: img }
+    })
+
+    // 调用适配器生成图像
+    const results = await adapter.generateImage({
+      prompt: prompt || '生成图像',
       model: localModel.value,
-      prompt: prompt,
       size: localSize.value,
       quality: localQuality.value,
-      n: 1
-    }
-
-    // Add reference image if provided | 如果有参考图则添加
-    if (refImages.length > 0) {
-      params.image = refImages
-    }
-
-    const result = await generate(params)
+      referenceImages: referenceImages
+    })
 
     // Update image node with generated URL | 更新图片节点 URL
-    if (result && result.length > 0) {
+    if (results && results.length > 0) {
       updateNode(imageNodeId, {
-        url: result[0].url,
+        url: results[0].url,
         loading: false,
         label: '文生图',
         model: localModel.value,
+        providerId: nodeProvider.value,
         updatedAt: Date.now()
       })
-      
+
       // Mark this config node as executed | 标记配置节点已执行
-      updateNode(props.id, { executed: true, outputNodeId: imageNodeId })
+      updateNode(props.id, {
+        executed: true,
+        outputNodeId: imageNodeId,
+        providerId: nodeProvider.value,
+        model: localModel.value
+      })
     }
     window.$message?.success('图片生成成功')
   } catch (err) {
+    console.error('Image generation failed:', err)
     // Update node to show error | 更新节点显示错误
     updateNode(imageNodeId, {
       loading: false,
       error: err.message || '生成失败',
       updatedAt: Date.now()
     })
-    window.$message?.error(err.message || '图片生成失败')
+    window.$message?.error(`生成失败: ${err.message}`)
   }
 }
 
