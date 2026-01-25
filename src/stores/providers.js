@@ -187,11 +187,12 @@ export const getProviderModels = (providerId) => {
 /**
  * 获取指定类型的所有可用模型（跨供应商）
  * @param {string} modelType - 模型类型：'text' | 'image' | 'video'
+ * @param {boolean} requireApiKey - 是否要求已配置API Key（默认false）
  * @returns {Array} - 模型列表，每个模型包含 providerId 和 providerName
  */
-export const getModelsByType = (modelType) => {
+export const getModelsByType = (modelType, requireApiKey = false) => {
   return providers.value
-    .filter(p => p.enabled)
+    .filter(p => requireApiKey ? p.enabled : true)  // 如果不需要API Key，则显示所有供应商的模型
     .flatMap(p => p.models
       .filter(m => m.enabled && m.type === modelType)
       .map(m => ({

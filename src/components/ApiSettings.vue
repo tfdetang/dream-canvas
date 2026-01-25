@@ -129,9 +129,18 @@
                 :key="model.id"
                 class="model-item"
               >
-                <n-checkbox :value="model.id">
-                  {{ model.name }}
-                </n-checkbox>
+                <div class="model-header">
+                  <n-checkbox :value="model.id">
+                    {{ model.name }}
+                  </n-checkbox>
+                  <n-tag
+                    size="tiny"
+                    :type="model.type === 'image' ? 'success' : model.type === 'video' ? 'warning' : 'info'"
+                    :bordered="false"
+                  >
+                    {{ model.type === 'text' ? '文本' : model.type === 'image' ? '图像' : model.type === 'video' ? '视频' : model.type }}
+                  </n-tag>
+                </div>
                 <div v-if="model.sizes" class="model-meta">
                   <n-tag
                     size="tiny"
@@ -445,6 +454,12 @@ const handleClear = () => {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.model-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .model-meta {
