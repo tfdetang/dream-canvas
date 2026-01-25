@@ -129,16 +129,17 @@
                 :key="model.id"
                 class="model-item"
               >
-                <div class="model-header">
+                <div class="flex items-center gap-2">
                   <n-checkbox :value="model.id">
                     {{ model.name }}
                   </n-checkbox>
+                  <!-- 模型类型标签 -->
                   <n-tag
+                    v-if="model.type"
                     size="tiny"
-                    :type="model.type === 'image' ? 'success' : model.type === 'video' ? 'warning' : 'info'"
-                    :bordered="false"
+                    :type="getModelTypeLabel(model.type).color"
                   >
-                    {{ model.type === 'text' ? '文本' : model.type === 'image' ? '图像' : model.type === 'video' ? '视频' : model.type }}
+                    {{ getModelTypeLabel(model.type).icon }} {{ getModelTypeLabel(model.type).label }}
                   </n-tag>
                 </div>
                 <div v-if="model.sizes" class="model-meta">
@@ -208,7 +209,7 @@ import {
   removeProvider,
   hasConfiguredProvider
 } from '@/stores/providers'
-import { PRESET_PROVIDERS } from '@/config/imageProviders'
+import { PRESET_PROVIDERS, MODEL_TYPE_LABELS } from '@/config/imageProviders'
 
 // Props | 属性
 const props = defineProps({
@@ -370,6 +371,11 @@ const getApiKeyPlaceholder = (providerId) => {
   return preset?.apiKeyPlaceholder || '请输入 API Key'
 }
 
+// 获取模型类型标签配置
+const getModelTypeLabel = (modelType) => {
+  return MODEL_TYPE_LABELS[modelType] || { label: '未知', color: 'default', icon: '❓' }
+}
+
 // Handle save | 处理保存（保留用于向后兼容）
 const handleSave = () => {
   if (formData.apiKey) {
@@ -454,12 +460,6 @@ const handleClear = () => {
   display: flex;
   flex-direction: column;
   gap: 4px;
-}
-
-.model-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
 }
 
 .model-meta {
