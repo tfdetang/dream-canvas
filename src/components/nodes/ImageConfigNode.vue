@@ -9,10 +9,25 @@
       <div class="flex items-center justify-between px-3 py-2 border-b border-[var(--border-color)]">
         <div class="flex items-center gap-2">
           <span class="text-sm font-medium text-[var(--text-secondary)]">{{ data.label }}</span>
-          <!-- 供应商标签 -->
+          <!-- 供应商标签（可点击切换） -->
+          <n-dropdown
+            v-if="switchableProviderOptions.length > 0"
+            :options="switchableProviderOptions"
+            @select="handleProviderSwitch"
+          >
+            <n-tag
+              size="tiny"
+              :type="nodeProvider === activeProviderId ? 'info' : 'default'"
+              style="cursor: pointer"
+              hoverable
+            >
+              {{ providerLabel }}
+            </n-tag>
+          </n-dropdown>
           <n-tag
+            v-else
             size="tiny"
-            :type="nodeProvider === activeProviderId ? 'info' : 'default'"
+            type="warning"
           >
             {{ providerLabel }}
           </n-tag>
@@ -170,7 +185,7 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { Handle, Position, useVueFlow } from '@vue-flow/core'
 import { NIcon, NDropdown, NSpin, NTag } from 'naive-ui'
-import { ChevronDownOutline, ChevronForwardOutline, CopyOutline, TrashOutline, RefreshOutline, AddOutline } from '@vicons/ionicons5'
+import { ChevronDownOutline, ChevronForwardOutline, CopyOutline, TrashOutline, RefreshOutline, AddOutline, CheckmarkOutline } from '@vicons/ionicons5'
 import { useImageGeneration, useApiConfig } from '../../hooks'
 import { updateNode, addNode, addEdge, nodes, edges, duplicateNode, removeNode } from '../../stores/canvas'
 import { imageModelOptions, getModelSizeOptions, getModelQualityOptions, getModelConfig, DEFAULT_IMAGE_MODEL } from '../../stores/models'
@@ -207,6 +222,46 @@ const providerLabel = computed(() => {
   const provider = providers.value.find(p => p.id === nodeProvider.value)
   return provider?.name || '未知供应商'
 })
+
+// 可切换的供应商选项（只显示已配置的）
+const switchableProviderOptions = computed(() => {
+  return providers.value
+    .filter(p => p.enabled)
+    .map(p => ({
+      label: p.name,
+      key: p.id
+    }))
+})
+
+// 处理供应商切换
+const handleProviderSwitch = (providerId) => {
+  nodeProvider.value = providerId
+  const provider = providers.value.find(p => p.id === providerId)
+
+  if (provider) {
+    // 切换到该供应商的第一个可用模型
+    const firstEnabledModel = provider.models.find(m => m.enabled)
+    if (firstEnabledModel) {
+      localModel.value = firstEnabledModel.id
+      if (firstEnabledModel.sizes && firstEnabledModel.sizes.length > 0) {
+        localSize.value = firstEnabledModel.sizes[0]
+      }
+      if (firstEnabledModel.quality && firstEnabledModel.quality.length > 0) {
+        localQuality.value = firstEnabledModel.quality[0]
+      }
+    }
+
+    // 更新节点数据
+    updateNode(props.id, {
+      providerId: providerId,
+      model: localModel.value,
+      size: localSize.value,
+      quality: localQuality.value
+    })
+
+    window.$message?.success(`已切换到 ${provider.name}`)
+  }
+}
 
 // Get current model config | 获取当前模型配置
 const currentModelConfig = computed(() => {
