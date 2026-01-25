@@ -18,20 +18,7 @@
         </n-dropdown>
       </div>
       <div class="flex items-center gap-2">
-        <!-- 当前供应商显示 -->
-        <n-dropdown :options="providerOptions" @select="handleProviderSwitch" v-if="providerOptions.length > 0">
-          <button
-            class="flex items-center gap-1.5 px-2 py-1 rounded-lg hover:bg-[var(--bg-tertiary)] transition-colors border border-[var(--border-color)]"
-            title="点击切换供应商"
-          >
-            <span class="text-sm">{{ providerIcon }}</span>
-            <span class="text-sm font-medium">{{ providerLabel }}</span>
-            <n-icon :size="14"><ChevronDownOutline /></n-icon>
-          </button>
-        </n-dropdown>
-        <n-tag v-else size="small" type="warning">未配置供应商</n-tag>
-
-        <button
+        <button 
           @click="toggleTheme"
           class="p-2 hover:bg-[var(--bg-tertiary)] rounded-lg transition-colors"
         >
@@ -307,8 +294,6 @@ import { nodes, edges, addNode, addEdge, updateNode, initSampleData, loadProject
 import { loadAllModels } from '../stores/models'
 import { useApiConfig, useChat, useWorkflowOrchestrator } from '../hooks'
 import { projects, initProjectsStore, updateProject, renameProject, currentProject } from '../stores/projects'
-import { activeProviderId, providers, setActiveProvider } from '@/stores/providers'
-import { PRESET_PROVIDERS } from '@/config/imageProviders'
 
 // API Settings component | API 设置组件
 import ApiSettings from '../components/ApiSettings.vue'
@@ -317,34 +302,6 @@ import WorkflowPanel from '../components/WorkflowPanel.vue'
 
 // API Config hook | API 配置 hook
 const { isConfigured: isApiConfigured } = useApiConfig()
-
-// 供应商相关计算属性
-const activeProvider = computed(() => {
-  return providers.value.find(p => p.id === activeProviderId.value)
-})
-
-const providerLabel = computed(() => {
-  return activeProvider.value?.name || '未配置供应商'
-})
-
-const providerIcon = computed(() => {
-  const preset = PRESET_PROVIDERS.find(p => p.id === activeProviderId.value)
-  return preset?.icon || '🔧'
-})
-
-const providerOptions = computed(() => {
-  return providers.value
-    .filter(p => p.enabled)
-    .map(p => ({
-      label: p.name,
-      key: p.id
-    }))
-})
-
-const handleProviderSwitch = (providerId) => {
-  setActiveProvider(providerId)
-  window.$message?.success(`已切换到 ${providers.value.find(p => p.id === providerId)?.name}`)
-}
 
 // Initialize models on page load | 页面加载时初始化模型
 onMounted(() => {
