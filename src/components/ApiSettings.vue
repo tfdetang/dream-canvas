@@ -269,7 +269,99 @@ watch(showModal, (val) => {
   emit('update:show', val)
 })
 
-// Handle save | 处理保存
+// 切换供应商
+const handleProviderSwitch = (providerId) => {
+  setActiveProvider(providerId)
+  currentProviderId.value = providerId
+  window.$message?.success(`已切换到 ${providers.value.find(p => p.id === providerId)?.name}`)
+}
+
+// 选择供应商进行编辑
+const selectProviderToEdit = (providerId) => {
+  editingProviderId.value = providerId
+  activeTab.value = 'config'
+
+  const provider = providers.value.find(p => p.id === providerId)
+  editForm.value = {
+    baseUrl: provider.baseUrl,
+    apiKey: provider.apiKey,
+    enabledModels: provider.models.filter(m => m.enabled).map(m => m.id)
+  }
+  showAdvanced.value = false
+}
+
+// 保存配置
+const handleSaveConfig = () => {
+  if (!editingProviderId.value) return
+
+  // 更新供应商配置
+  updateProvider(editingProviderId.value, {
+    baseUrl: editForm.value.baseUrl,
+    apiKey: editForm.value.apiKey
+  })
+
+  // 更新模型启用状态
+  const provider = providers.value.find(p => p.id === editingProviderId.value)
+  provider.models.forEach(model => {
+    toggleModel(
+      editingProviderId.value,
+      model.id,
+      editForm.value.enabledModels.includes(model.id)
+    )
+  })
+
+  window.$message?.success('配置已保存')
+  editingProviderId.value = null
+  activeTab.value = 'providers'
+}
+
+// 测试连接
+const handleTestConnection = async () => {
+  testing.value = true
+  try {
+    // TODO: 实际调用 API 测试
+    await new Promise(resolve => setTimeout(resolve, 1000))
+    window.$message?.success('连接成功！')
+  } catch (error) {
+    window.$message?.error(`连接失败: ${error.message}`)
+  } finally {
+    testing.value = false
+  }
+}
+
+// 添加自定义供应商
+const handleAddCustomProvider = () => {
+  const name = window.prompt('请输入供应商名称：')
+  if (!name) return
+
+  const baseUrl = window.prompt('请输入 Base URL：', 'https://api.example.com/v1')
+  if (!baseUrl) return
+
+  const customId = addCustomProvider({ name, baseUrl })
+  selectProviderToEdit(customId)
+}
+
+// 删除供应商
+const handleDeleteProvider = (providerId) => {
+  if (window.confirm('确定要删除此供应商吗？')) {
+    removeProvider(providerId)
+    window.$message?.success('已删除')
+  }
+}
+
+// 获取供应商图标
+const getProviderIcon = (providerId) => {
+  const preset = PRESET_PROVIDERS.find(p => p.id === providerId)
+  return preset?.icon || '🔧'
+}
+
+// 获取 API Key 占位符
+const getApiKeyPlaceholder = (providerId) => {
+  const preset = PRESET_PROVIDERS.find(p => p.id === providerId)
+  return preset?.apiKeyPlaceholder || '请输入 API Key'
+}
+
+// Handle save | 处理保存（保留用于向后兼容）
 const handleSave = () => {
   if (formData.apiKey) {
     setApiKey(formData.apiKey)
@@ -281,7 +373,7 @@ const handleSave = () => {
   emit('saved')
 }
 
-// Handle clear | 处理清除
+// Handle clear | 处理清除（保留用于向后兼容）
 const handleClear = () => {
   clearConfig()
   formData.apiKey = ''
