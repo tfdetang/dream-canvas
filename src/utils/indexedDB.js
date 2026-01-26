@@ -366,40 +366,63 @@ export const needsMigration = async () => {
   }
 }
 
+// Track initialization state to prevent duplicate calls
+let isInitialized = false
+let initPromise = null
+
 /**
  * Initialize IndexedDB and perform migration if needed
  * 初始化 IndexedDB 并在需要时执行迁移
  */
 export const initIndexedDB = async () => {
-  try {
-    // Open DB to ensure it's created
-    await openDB()
-    console.log('IndexedDB initialized')
-
-    // Check and perform migration
-    if (await needsMigration()) {
-      console.log('Migration needed, starting...')
-      await migrateFromLocalStorage()
-      localStorage.setItem('ai-canvas-indexeddb-migrated', 'true')
-      console.log('Migration completed')
-
-      // Show success message to user
-      if (typeof window !== 'undefined' && window.$message) {
-        window.$message.success('已迁移到 IndexedDB 存储，支持更大容量！')
-      }
-    }
-
+  // If already initialized, return immediately
+  if (isInitialized) {
+    console.log('IndexedDB already initialized, skipping')
     return true
-  } catch (error) {
-    console.error('IndexedDB initialization failed:', error)
-
-    // Show error message to user
-    if (typeof window !== 'undefined' && window.$message) {
-      window.$message.error('IndexedDB 初始化失败，请检查浏览器设置')
-    }
-
-    throw error
   }
+
+  // If initialization is in progress, wait for it
+  if (initPromise) {
+    console.log('IndexedDB initialization in progress, waiting...')
+    return initPromise
+  }
+
+  // Start initialization
+  initPromise = (async () => {
+    try {
+      // Open DB to ensure it's created
+      await openDB()
+      console.log('IndexedDB initialized')
+
+      // Check and perform migration
+      if (await needsMigration()) {
+        console.log('Migration needed, starting...')
+        await migrateFromLocalStorage()
+        localStorage.setItem('ai-canvas-indexeddb-migrated', 'true')
+        console.log('Migration completed')
+
+        // Show success message to user
+        if (typeof window !== 'undefined' && window.$message) {
+          window.$message.success('已迁移到 IndexedDB 存储，支持更大容量！')
+        }
+      }
+
+      isInitialized = true
+      return true
+    } catch (error) {
+      console.error('IndexedDB initialization failed:', error)
+
+      // Show error message to user
+      if (typeof window !== 'undefined' && window.$message) {
+        window.$message.error('IndexedDB 初始化失败，请检查浏览器设置')
+      }
+
+      initPromise = null // Reset on error to allow retry
+      throw error
+    }
+  })()
+
+  return initPromise
 }
 
 export default {

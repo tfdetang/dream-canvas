@@ -31,7 +31,6 @@ export const PRESET_PROVIDERS = [
         name: 'DALL-E 3',
         type: MODEL_TYPES.IMAGE,
         enabled: true,
-        sizes: ['1024x1024', '1024x1792', '1792x1024'],
         quality: ['standard', 'hd'],
         style: ['vivid', 'natural']
       },
@@ -39,44 +38,7 @@ export const PRESET_PROVIDERS = [
         id: 'dall-e-2',
         name: 'DALL-E 2',
         type: MODEL_TYPES.IMAGE,
-        enabled: false,
-        sizes: ['256x256', '512x512', '1024x1024']
-      }
-    ]
-  },
-  {
-    id: 'gemini',
-    name: 'Google Gemini',
-    baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
-    icon: '🔷',
-    description: 'Imagen 3 图像生成',
-    apiKeyPlaceholder: 'AIzaSyxxxxxxxxxxxxxx',
-    docUrl: 'https://ai.google.dev/tutorials/image_generation',
-    defaultModels: [
-      {
-        id: 'imagen-3.0-generate-001',
-        name: 'Imagen 3',
-        type: MODEL_TYPES.IMAGE,
-        enabled: true,
-        sizes: ['1024x1024', '1536x1536']
-      }
-    ]
-  },
-  {
-    id: 'banana-pro',
-    name: 'Banana-pro',
-    baseUrl: 'https://api.banana-pro.com/v1',
-    icon: '🍌',
-    description: 'Banana-pro 图像服务',
-    apiKeyPlaceholder: 'banana-xxxxxxxx',
-    docUrl: '',
-    defaultModels: [
-      {
-        id: 'banana-model-1',
-        name: 'Banana Model',
-        type: MODEL_TYPES.IMAGE,
-        enabled: true,
-        sizes: ['1024x1024', '512x512']
+        enabled: false
       }
     ]
   },
@@ -93,8 +55,7 @@ export const PRESET_PROVIDERS = [
         id: 'doubao-seedream-4-5-251128',
         name: 'SeeDream 4.5',
         type: MODEL_TYPES.IMAGE,
-        enabled: true,
-        sizes: ['1024x1024', '2048x2048', '1440x2560', '2560x1440']
+        enabled: true
       }
     ]
   }

@@ -48,22 +48,6 @@
           </n-dropdown>
         </div>
 
-        <!-- Size selector | 尺寸选择 -->
-        <div v-if="hasSizeOptions" class="flex items-center justify-between">
-          <span class="text-xs text-[var(--text-secondary)]">尺寸</span>
-          <div class="flex items-center gap-2">
-            <n-dropdown :options="sizeOptions" @select="handleSizeSelect">
-              <button
-                class="flex items-center gap-1 text-sm text-[var(--text-primary)] hover:text-[var(--accent-color)]">
-                {{ displaySize }}
-                <n-icon :size="12">
-                  <ChevronForwardOutline />
-                </n-icon>
-              </button>
-            </n-dropdown>
-          </div>
-        </div>
-
         <!-- Custom parameters | 自定义参数 -->
         <div
           v-for="param in customParamsList"
@@ -181,7 +165,7 @@ import { NIcon, NDropdown, NSpin, NTag } from 'naive-ui'
 import { ChevronDownOutline, ChevronForwardOutline, CopyOutline, TrashOutline, RefreshOutline, AddOutline } from '@vicons/ionicons5'
 import { useImageGeneration, useApiConfig } from '../../hooks'
 import { updateNode, addNode, addEdge, nodes, edges, duplicateNode, removeNode } from '../../stores/canvas'
-import { getModelSizeOptions, getModelQualityOptions, getModelConfig, DEFAULT_IMAGE_MODEL } from '../../stores/models'
+import { getModelQualityOptions, getModelConfig, DEFAULT_IMAGE_MODEL } from '../../stores/models'
 import { providers, activeProviderId } from '@/stores/providers'
 import { createProviderAdapter } from '@/api/providers'
 import { MODEL_TYPES } from '@/config/imageProviders'
@@ -207,7 +191,6 @@ const showActions = ref(false)
 // Initialize model with default logic
 // 优先使用节点已有的model，否则使用智能默认值（后面在onMounted中设置）
 const localModel = ref(props.data?.model || null)
-const localSize = ref(props.data?.size || '2048x2048')
 const localQuality = ref(props.data?.quality || 'standard')
 // 自定义参数存储
 const customParamsValues = ref(props.data?.customParams || {})
@@ -269,23 +252,6 @@ const hasQualityOptions = computed(() => {
 const displayQuality = computed(() => {
   const option = qualityOptions.value.find(o => o.key === localQuality.value)
   return option?.label || '标准画质'
-})
-
-// Size options based on model and quality | 基于模型和画质的尺寸选项
-const sizeOptions = computed(() => {
-  return getModelSizeOptions(localModel.value, localQuality.value)
-})
-
-// Check if model has size options | 检查模型是否有尺寸选项
-const hasSizeOptions = computed(() => {
-  const config = getModelConfig(localModel.value)
-  return config?.sizes && config.sizes.length > 0
-})
-
-// Display size with label | 显示尺寸（带标签）
-const displaySize = computed(() => {
-  const option = sizeOptions.value.find(o => o.key === localSize.value)
-  return option?.label || localSize.value
 })
 
 // 获取当前模型的自定义参数列表
@@ -425,13 +391,9 @@ const handleModelSelect = (key) => {
   // 记录用户选择的模型，下次新建时自动使用
   setLastUsedModel('imageConfig', key)
 
-  // Update size and quality to model's default | 更新为模型默认尺寸和画质
+  // Update quality to model's default | 更新为模型默认画质
   const config = getModelConfig(key)
   const updates = { model: key }
-  if (config?.defaultParams?.size) {
-    localSize.value = config.defaultParams.size
-    updates.size = config.defaultParams.size
-  }
   if (config?.defaultParams?.quality) {
     localQuality.value = config.defaultParams.quality
     updates.quality = config.defaultParams.quality
@@ -452,26 +414,7 @@ const handleModelSelect = (key) => {
 // Handle quality selection | 处理画质选择
 const handleQualitySelect = (quality) => {
   localQuality.value = quality
-  // Update size to first option of new quality | 更新尺寸为新画质的第一个选项
-  const newSizeOptions = getModelSizeOptions(localModel.value, quality)
-  if (newSizeOptions.length > 0) {
-    const defaultSize = quality === '4k' ? newSizeOptions.find(o => o.key.includes('4096'))?.key || newSizeOptions[4]?.key : newSizeOptions[4]?.key
-    localSize.value = defaultSize || newSizeOptions[0].key
-    updateNode(props.id, { quality, size: localSize.value })
-  } else {
-    updateNode(props.id, { quality })
-  }
-}
-
-// Handle size selection | 处理尺寸选择
-const handleSizeSelect = (size) => {
-  localSize.value = size
-  updateNode(props.id, { size })
-}
-
-// Update size from manual input | 更新手动输入的尺寸
-const updateSize = () => {
-  updateNode(props.id, { size: localSize.value })
+  updateNode(props.id, { quality })
 }
 
 // Created image node ID | 创建的图片节点 ID
@@ -641,7 +584,6 @@ const handleGenerate = async (mode = 'auto') => {
     const results = await adapter.generateImage({
       prompt: prompt || '生成图像',
       model: localModel.value,
-      size: localSize.value,
       quality: localQuality.value,
       referenceImages: referenceImages,
       customParams: customParamsValues.value // 传递自定义参数

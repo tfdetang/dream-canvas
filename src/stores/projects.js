@@ -22,6 +22,10 @@ export const currentProject = computed(() => {
   return projects.value.find(p => p.id === currentProjectId.value) || null
 })
 
+// Track initialization state
+let isInitializing = false
+let initPromise = null
+
 /**
  * Load projects from IndexedDB | 从 IndexedDB 加载项目
  */
@@ -239,54 +243,70 @@ export const getSortedProjects = (sortBy = 'updatedAt', order = 'desc') => {
  * Initialize projects store | 初始化项目存储
  */
 export const initProjectsStore = async () => {
-  // Initialize IndexedDB and perform migration if needed
-  await db.initIndexedDB()
-
-  // Load projects from IndexedDB
-  await loadProjects()
-
-  // Create sample project if empty | 如果为空则创建示例项目
-  if (projects.value.length === 0) {
-    const id = await createProject('示例项目')
-    const project = projects.value.find(p => p.id === id)
-    if (project) {
-      project.canvasData = {
-        nodes: [
-          {
-            id: 'node_0',
-            type: 'text',
-            position: { x: 150, y: 150 },
-            data: {
-              content: '一只金毛寻回犬在草地上奔跑，摇着尾巴，脸上带着快乐的表情。它的毛发在阳光下闪耀，眼神充满了对自由的渴望，全身散发着阳光、友善的气息。',
-              label: '文本输入'
-            }
-          },
-          {
-            id: 'node_1',
-            type: 'imageConfig',
-            position: { x: 500, y: 150 },
-            data: {
-              prompt: '',
-              model: 'doubao-seedream-4-5-251128',
-              size: '512x512',
-              label: '文生图'
-            }
-          }
-        ],
-        edges: [
-          {
-            id: 'edge_node_0_node_1',
-            source: 'node_0',
-            target: 'node_1',
-            sourceHandle: 'right',
-            targetHandle: 'left'
-          }
-        ],
-        viewport: { x: 100, y: 50, zoom: 0.8 }
-      }
-      await saveProjects()
-    }
+  // Prevent concurrent initialization
+  if (isInitializing) {
+    console.log('Projects store initialization in progress, waiting...')
+    return initPromise
   }
+
+  isInitializing = true
+  initPromise = (async () => {
+    try {
+      // Initialize IndexedDB and perform migration if needed
+      await db.initIndexedDB()
+
+      // Load projects from IndexedDB
+      await loadProjects()
+
+      // Create sample project if empty | 如果为空则创建示例项目
+      if (projects.value.length === 0) {
+        const id = await createProject('示例项目')
+        const project = projects.value.find(p => p.id === id)
+        if (project) {
+          project.canvasData = {
+            nodes: [
+              {
+                id: 'node_0',
+                type: 'text',
+                position: { x: 150, y: 150 },
+                data: {
+                  content: '一只金毛寻回犬在草地上奔跑，摇着尾巴，脸上带着快乐的表情。它的毛发在阳光下闪耀，眼神充满了对自由的渴望，全身散发着阳光、友善的气息。',
+                  label: '文本输入'
+                }
+              },
+              {
+                id: 'node_1',
+                type: 'imageConfig',
+                position: { x: 500, y: 150 },
+                data: {
+                  prompt: '',
+                  model: 'doubao-seedream-4-5-251128',
+                  size: '512x512',
+                  label: '文生图'
+                }
+              }
+            ],
+            edges: [
+              {
+                id: 'edge_node_0_node_1',
+                source: 'node_0',
+                target: 'node_1',
+                sourceHandle: 'right',
+                targetHandle: 'left'
+              }
+            ],
+            viewport: { x: 100, y: 50, zoom: 0.8 }
+          }
+          await saveProjects()
+        }
+      }
+    } finally {
+      isInitializing = false
+      initPromise = null
+    }
+  })()
+
+  return initPromise
 }
 
 // Export for debugging | 导出用于调试

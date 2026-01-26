@@ -18,7 +18,18 @@
         </n-dropdown>
       </div>
       <div class="flex items-center gap-2">
-        <button 
+        <button
+          @click="handleManualSave"
+          class="p-2 hover:bg-[var(--bg-tertiary)] rounded-lg transition-colors"
+          :class="{ 'text-green-500': justSaved }"
+          title="手动保存"
+        >
+          <n-icon :size="20">
+            <SaveOutline v-if="!justSaved" />
+            <CheckmarkOutline v-else />
+          </n-icon>
+        </button>
+        <button
           @click="toggleTheme"
           class="p-2 hover:bg-[var(--bg-tertiary)] rounded-lg transition-colors"
         >
@@ -27,7 +38,7 @@
             <MoonOutline v-else />
           </n-icon>
         </button>
-        <button 
+        <button
           @click="showDownloadModal = true"
           class="p-2 hover:bg-[var(--bg-tertiary)] rounded-lg transition-colors"
           :class="{ 'text-[var(--accent-color)]': hasDownloadableAssets }"
@@ -35,7 +46,7 @@
         >
           <n-icon :size="20"><DownloadOutline /></n-icon>
         </button>
-        <button 
+        <button
           @click="showApiSettings = true"
           class="p-2 hover:bg-[var(--bg-tertiary)] rounded-lg transition-colors"
           :class="{ 'text-[var(--accent-color)]': isApiConfigured }"
@@ -267,10 +278,10 @@ import { VueFlow, useVueFlow } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { MiniMap } from '@vue-flow/minimap'
 import { NIcon, NSwitch, NDropdown, NMessageProvider, NSpin, NModal, NInput, NButton, NTag } from 'naive-ui'
-import { 
+import {
   ChevronBackOutline,
   ChevronDownOutline,
-  SunnyOutline, 
+  SunnyOutline,
   MoonOutline,
   SettingsOutline,
   AddOutline,
@@ -287,7 +298,9 @@ import {
   LocateOutline,
   RemoveOutline,
   DownloadOutline,
-  AppsOutline
+  AppsOutline,
+  SaveOutline,
+  CheckmarkOutline
 } from '@vicons/ionicons5'
 import { isDark, toggleTheme } from '../stores/theme'
 import { nodes, edges, addNode, addEdge, updateNode, initSampleData, loadProject, saveProject, clearCanvas, canvasViewport, updateViewport, undo, redo, canUndo, canRedo, manualSaveHistory } from '../stores/canvas'
@@ -390,6 +403,7 @@ const isMobile = ref(false)
 const showGrid = ref(true)
 const showApiSettings = ref(false)
 const isProcessing = ref(false)
+const justSaved = ref(false) // 保存成功提示状态
 
 // Flow key for forcing re-render on project switch | 项目切换时强制重新渲染的 key
 const flowKey = ref(Date.now())
@@ -757,6 +771,18 @@ const sendMessage = async () => {
 // Go back to home | 返回首页
 const goBack = () => {
   router.push('/')
+}
+
+// Handle manual save | 手动保存
+const handleManualSave = () => {
+  saveProject(true)  // Force save even if auto-save is disabled
+  justSaved.value = true
+  window.$message?.success('项目已保存')
+
+  // 2秒后恢复图标
+  setTimeout(() => {
+    justSaved.value = false
+  }, 2000)
 }
 
 // Check if mobile | 检测是否移动端

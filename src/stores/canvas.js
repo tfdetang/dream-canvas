@@ -75,7 +75,8 @@ export const addNode = (type, position = { x: 100, y: 100 }, data = {}) => {
     }
   }
   nodes.value = [...nodes.value, newNode]
-  saveToHistory() // Save after adding node | 添加节点后保存
+  saveToHistory() // Save to history | 保存到历史
+  debouncedSave() // Trigger auto-save | 触发自动保存
   return id
 }
 
@@ -122,9 +123,11 @@ const getDefaultNodeData = (type) => {
 
 // Update node data | 更新节点数据
 export const updateNode = (id, data) => {
-  nodes.value = nodes.value.map(node => 
+  nodes.value = nodes.value.map(node =>
     node.id === id ? { ...node, data: { ...node.data, ...data } } : node
   )
+  // Trigger auto-save when node is updated | 节点更新时触发自动保存
+  debouncedSave()
 }
 
 // Remove node | 删除节点
@@ -166,7 +169,8 @@ export const addEdge = (params) => {
     ...params
   }
   edges.value = [...edges.value, newEdge]
-  saveToHistory() // Save after adding edge | 添加连线后保存
+  saveToHistory() // Save to history | 保存到历史
+  debouncedSave() // Trigger auto-save | 触发自动保存
 }
 
 // Update edge data | 更新边数据
@@ -254,19 +258,31 @@ export const loadProject = (projectId) => {
     edges: JSON.parse(JSON.stringify(edges.value))
   }]
   historyIndex.value = 0
-  
-  // Enable auto-save after loading | 加载后启用自动保存
-  setTimeout(() => {
-    autoSaveEnabled = true
-    isRestoring = false
-  }, 100)
+
+  // Enable auto-save immediately after loading | 加载后立即启用自动保存
+  // Remove delay to ensure auto-save works for quick actions
+  isRestoring = false
+  autoSaveEnabled = true
 }
 
 /**
  * Save current project | 保存当前项目
+ * @param {boolean} force - Force save even if auto-save is disabled | 强制保存（即使自动保存未启用）
  */
-export const saveProject = () => {
-  if (!currentProjectId.value) return
+export const saveProject = (force = false) => {
+  if (!currentProjectId.value) {
+    console.warn('[Canvas] Cannot save: no current project ID')
+    return
+  }
+
+  // For manual saves, force regardless of autoSaveEnabled
+  // For auto saves, check autoSaveEnabled flag
+  if (!force && !autoSaveEnabled) {
+    console.log('[Canvas] Auto-save skipped: not enabled yet')
+    return
+  }
+
+  console.log('[Canvas] Saving project:', currentProjectId.value)
   updateProjectCanvas(currentProjectId.value, {
     nodes: nodes.value,
     edges: edges.value,

@@ -1,7 +1,8 @@
 # AI Canvas
 
 一个基于 Vue Flow 的可视化 AI 创作画布，支持文生图、视频生成等 AI 工作流的节点式编排。
-[体验地址](https://marketing.chatfire.site/huobao-canvas/)
+
+[![GitHub](https://img.shields.io/badge/GitHub-tfdetang/dream--canvas-blue?logo=github)](https://github.com/tfdetang/dream-canvas)
 
 ![Vue](https://img.shields.io/badge/Vue-3.5-4FC08D?logo=vue.js)
 ![Vite](https://img.shields.io/badge/Vite-5.2-646CFF?logo=vite)
@@ -49,8 +50,8 @@
 
 ```bash
 # 克隆项目
-git clone https://github.com/chatfire-AI/huobao-canvas.git
-cd huobao-canvas
+git clone https://github.com/tfdetang/dream-canvas.git
+cd dream-canvas
 
 # 安装依赖
 pnpm install

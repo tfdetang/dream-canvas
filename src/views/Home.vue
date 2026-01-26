@@ -8,8 +8,8 @@
         <!-- <span class="text-lg font-bold text-[var(--text-primary)]">火宝无限画布</span> -->
       </div>
       <div class="flex items-center gap-4">
-        <a 
-          href="https://github.com/chatfire-AI/huobao-canvas"
+        <a
+          href="https://github.com/tfdetang/dream-canvas"
           target="_blank"
           rel="noopener noreferrer"
           class="p-2 rounded-lg hover:bg-[var(--bg-tertiary)] transition-colors text-[var(--text-primary)] hover:text-[var(--accent-color)]"
@@ -47,8 +47,8 @@
       <!-- Welcome section | 欢迎区域 -->
       <section class="text-center mb-12">
         <div class="flex items-center justify-center gap-4 mb-8">
-          <img src="../assets/logo.png" alt="Logo" class="w-12 h-12 md:w-16 md:h-16" />
-          <h1 class="text-2xl md:text-4xl font-bold text-[var(--text-primary)]">欢迎来到火宝无限画布</h1>
+          <img src="/logo.svg" alt="Logo" class="w-12 h-12 md:w-16 md:h-16" />
+          <h1 class="text-2xl md:text-4xl font-bold text-[var(--text-primary)]">欢迎来到Dream-Canvas</h1>
         </div>
         
         <!-- Input area | 输入区域 -->
@@ -407,9 +407,9 @@ const createNewProject = () => {
 
 // Create project with input text | 使用输入文本创建项目
 const handleCreateWithInput = () => {
-  checkApiKeyAndNavigate(() => {
-    const name = inputText.value.trim() || '未命名项目'
-    const id = createProject(name)
+  checkApiKeyAndNavigate(async () => {
+    // Always create "未命名项目", don't use prompt as project name
+    const id = await createProject('未命名项目')  // ✅ 等待 Promise 完成
     // Store the input text to be used as initial prompt
     sessionStorage.setItem('ai-canvas-initial-prompt', inputText.value.trim())
     inputText.value = ''

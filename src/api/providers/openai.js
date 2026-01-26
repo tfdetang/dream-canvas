@@ -16,11 +16,13 @@ export class OpenAIAdapter extends BaseProviderAdapter {
       model,
       prompt,
       n: 1,
-      size: size || '1024x1024',
-      quality: quality || 'standard',
       response_format: 'url',
       ...customParams  // 合并自定义参数
     }
+
+    // 只在提供了参数时才添加
+    if (size) requestBody.size = size
+    if (quality) requestBody.quality = quality
 
     console.log('[OpenAI] Request body:', requestBody)
 
@@ -87,8 +89,8 @@ export class OpenAIAdapter extends BaseProviderAdapter {
         }
       }
 
-      // 添加可选参数
-      if (size && size !== 'auto') {
+      // 添加可选参数（只在提供时添加）
+      if (size) {
         formData.append('size', size)
       }
 
@@ -133,14 +135,18 @@ export class OpenAIAdapter extends BaseProviderAdapter {
   async fallbackToTextGeneration({ prompt, model, size, quality }) {
     const enhancedPrompt = `${prompt}\n\n(Note: Based on a reference image)`
 
-    const response = await this.sendRequest('/images/generations', {
+    const requestBody = {
       model,
       prompt: enhancedPrompt,
       n: 1,
-      size: size || '1024x1024',
-      quality: quality || 'standard',
       response_format: 'url'
-    })
+    }
+
+    // 只在提供了参数时才添加
+    if (size) requestBody.size = size
+    if (quality) requestBody.quality = quality
+
+    const response = await this.sendRequest('/images/generations', requestBody)
 
     // 验证响应
     this.validateResponse(response, 'data')

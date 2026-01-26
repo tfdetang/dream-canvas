@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 AI Canvas (梦幻画布) - A visual AI creation canvas based on Vue Flow, supporting node-based orchestration of AI workflows including text-to-image and video generation.
 
-**Live Demo**: https://marketing.chatfire.site/huobao-canvas/
+**GitHub**: https://github.com/tfdetang/dream-canvas
 
 ## Development Commands
 

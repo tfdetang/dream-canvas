@@ -171,14 +171,6 @@
                     删除
                   </n-button>
                 </div>
-                <div v-if="model.sizes" class="model-meta">
-                  <n-tag
-                    size="tiny"
-                    :bordered="false"
-                  >
-                    {{ model.sizes.join(', ') }}
-                  </n-tag>
-                </div>
               </div>
             </n-checkbox-group>
           </div>
@@ -233,11 +225,6 @@
                   :options="apiFormatOptions"
                   placeholder="选择API兼容格式"
                 />
-              </n-form-item>
-
-              <!-- 支持的尺寸 -->
-              <n-form-item label="支持尺寸">
-                <n-dynamic-tags v-model:value="newModelForm.sizes" />
               </n-form-item>
 
               <n-divider title-placement="left">自定义参数</n-divider>
@@ -446,7 +433,6 @@ const newModelForm = ref({
   name: '',
   type: MODEL_TYPES.IMAGE,
   apiFormat: API_FORMATS.OPENAI,
-  sizes: ['1024x1024'],
   customParams: [] // 新增：自定义参数数组
 })
 
@@ -682,7 +668,6 @@ const handleEditModel = (modelId) => {
     name: model.name,
     type: model.type,
     apiFormat: model.apiFormat || API_FORMATS.OPENAI,
-    sizes: model.sizes ? [...model.sizes] : [],
     customParams: model.customParams ? JSON.parse(JSON.stringify(model.customParams)) : []
   }
 
@@ -712,7 +697,6 @@ const handleAddModel = () => {
       name: newModelForm.value.name,
       type: newModelForm.value.type,
       apiFormat: newModelForm.value.apiFormat,
-      sizes: newModelForm.value.sizes,
       customParams: newModelForm.value.customParams || []
     }
 
@@ -728,7 +712,6 @@ const handleAddModel = () => {
       type: newModelForm.value.type,
       apiFormat: newModelForm.value.apiFormat,
       enabled: true,
-      sizes: newModelForm.value.sizes,
       customParams: newModelForm.value.customParams || []
     }
 
@@ -746,7 +729,6 @@ const handleAddModel = () => {
     name: '',
     type: MODEL_TYPES.IMAGE,
     apiFormat: API_FORMATS.OPENAI,
-    sizes: ['1024x1024'],
     customParams: []
   }
   newParamForm.value = {
