@@ -105,7 +105,8 @@ const getDefaultNodeData = (type) => {
     case 'text':
       return {
         content: '',
-        label: '文本输入'
+        label: '文本输入',
+        selectedModel: null  // 选择的文本模型 ID
       }
     case 'imageConfig':
       return {

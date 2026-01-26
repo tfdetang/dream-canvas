@@ -22,10 +22,38 @@ export const PRESET_PROVIDERS = [
     name: 'OpenAI',
     baseUrl: 'https://api.openai.com/v1',
     icon: '🤖',
-    description: 'DALL-E 系列模型',
+    description: 'GPT 系列语言模型和 DALL-E 图像模型',
     apiKeyPlaceholder: 'sk-xxxxxxxxxxxxxxxx',
-    docUrl: 'https://platform.openai.com/docs/api-reference/images',
+    docUrl: 'https://platform.openai.com/docs/api-reference',
     defaultModels: [
+      {
+        id: 'gpt-4o',
+        name: 'GPT-4o',
+        type: MODEL_TYPES.TEXT,
+        enabled: true,
+        apiFormat: 'openai'
+      },
+      {
+        id: 'gpt-4o-mini',
+        name: 'GPT-4o Mini',
+        type: MODEL_TYPES.TEXT,
+        enabled: true,
+        apiFormat: 'openai'
+      },
+      {
+        id: 'gpt-4-turbo',
+        name: 'GPT-4 Turbo',
+        type: MODEL_TYPES.TEXT,
+        enabled: false,
+        apiFormat: 'openai'
+      },
+      {
+        id: 'gpt-3.5-turbo',
+        name: 'GPT-3.5 Turbo',
+        type: MODEL_TYPES.TEXT,
+        enabled: false,
+        apiFormat: 'openai'
+      },
       {
         id: 'dall-e-3',
         name: 'DALL-E 3',

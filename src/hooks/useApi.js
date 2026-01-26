@@ -49,6 +49,8 @@ export const useApiState = () => {
 
 /**
  * Chat composable | 问答组合式函数
+ * @param {Object} options - { systemPrompt, model, providerConfig }
+ * @param {Object} options.providerConfig - { apiKey, baseUrl, apiFormat }
  */
 export const useChat = (options = {}) => {
   const { loading, error, status, reset, setLoading, setError, setSuccess } = useApiState()
@@ -73,9 +75,17 @@ export const useChat = (options = {}) => {
         abortController = new AbortController()
         let fullResponse = ''
 
+        // 使用提供商配置或默认配置
+        const providerConfig = options.providerConfig || {}
+        const signal = abortController.signal
+
         for await (const chunk of streamChatCompletions(
-          { model: options.model || 'gpt-4o-mini', messages: msgList },
-          abortController.signal
+          {
+            model: options.model || 'gpt-4o-mini',
+            messages: msgList,
+            providerConfig
+          },
+          signal
         )) {
           fullResponse += chunk
           currentResponse.value = fullResponse

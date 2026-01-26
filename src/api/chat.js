@@ -14,16 +14,20 @@ export const chatCompletions = (data) =>
 
 // 流式对话补全
 export const streamChatCompletions = async function* (data, signal) {
-  const apiKey = localStorage.getItem('apiKey')
-  const baseUrl = getBaseUrl()
-  
+  // 支持提供商配置或使用旧的 localStorage 配置（向后兼容）
+  const apiKey = data.providerConfig?.apiKey || localStorage.getItem('apiKey')
+  const baseUrl = data.providerConfig?.baseUrl || getBaseUrl()
+
+  // 移除 providerConfig，不发送到 API
+  const { providerConfig, ...requestData } = data
+
   const response = await fetch(`${baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${apiKey}`
     },
-    body: JSON.stringify({ ...data, stream: true }),
+    body: JSON.stringify({ ...requestData, stream: true }),
     signal
   })
 
@@ -48,11 +52,11 @@ export const streamChatCompletions = async function* (data, signal) {
       const trimmed = line.trim()
       if (!trimmed || !trimmed.startsWith('data:')) continue
 
-      const data = trimmed.slice(5).trim()
-      if (data === '[DONE]') return
+      const jsonStr = trimmed.slice(5).trim()
+      if (jsonStr === '[DONE]') return
 
       try {
-        const parsed = JSON.parse(data)
+        const parsed = JSON.parse(jsonStr)
         const content = parsed.choices?.[0]?.delta?.content
         if (content) yield content
       } catch (e) {

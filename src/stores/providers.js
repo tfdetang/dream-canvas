@@ -1,5 +1,5 @@
 import { ref, computed } from 'vue'
-import { PRESET_PROVIDERS } from '@/config/imageProviders'
+import { PRESET_PROVIDERS, MODEL_TYPES } from '@/config/imageProviders'
 
 const STORAGE_KEY = 'dream-canvas-providers'
 
@@ -257,4 +257,52 @@ export const getProvider = (providerId) => {
 export const getProviderModels = (providerId) => {
   const provider = getProvider(providerId)
   return provider?.models.filter(m => m.enabled) || []
+}
+
+/**
+ * 获取所有启用的文本模型
+ * @returns {Array} [{ providerId, providerName, modelId, modelName, apiKey, baseUrl, apiFormat }, ...]
+ */
+export const getAllTextModels = () => {
+  const textModels = []
+
+  for (const provider of providers.value) {
+    if (!provider.enabled) continue
+
+    const providerTextModels = provider.models
+      .filter(m => m.enabled && m.type === MODEL_TYPES.TEXT)
+      .map(m => ({
+        providerId: provider.id,
+        providerName: provider.name,
+        modelId: m.id,
+        modelName: m.name,
+        apiKey: provider.apiKey,
+        baseUrl: provider.baseUrl,
+        apiFormat: m.apiFormat || 'openai'
+      }))
+
+    textModels.push(...providerTextModels)
+  }
+
+  return textModels
+}
+
+/**
+ * 根据模型 ID 获取模型配置（包括提供商信息）
+ * @param {string} modelId - 模型 ID
+ * @returns {Object|null} { providerId, model, apiKey, baseUrl }
+ */
+export const getModelConfigById = (modelId) => {
+  for (const provider of providers.value) {
+    const model = provider.models.find(m => m.id === modelId)
+    if (model) {
+      return {
+        providerId: provider.id,
+        model,
+        apiKey: provider.apiKey,
+        baseUrl: provider.baseUrl
+      }
+    }
+  }
+  return null
 }

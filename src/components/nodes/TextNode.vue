@@ -27,10 +27,27 @@
         <textarea v-model="content" @blur="updateContent" @wheel.stop @mousedown.stop
           class="w-full bg-transparent resize-none outline-none text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] min-h-[80px]"
           placeholder="请输入文本内容..." />
+
+        <!-- Model selector | 模型选择器 -->
+        <div class="mt-2">
+          <n-select
+            v-if="textModels.length > 0"
+            v-model:value="selectedModel"
+            @update:value="handleModelChange"
+            :options="textModels.map(m => ({ label: `${m.providerName} - ${m.modelName}`, value: m.modelId }))"
+            size="small"
+            placeholder="选择文本模型"
+            :consistent-menu-width="false"
+          />
+          <div v-else class="text-xs text-[var(--text-secondary)] p-2 bg-[var(--bg-tertiary)] rounded border border-[var(--border-color)]">
+            请先在设置中配置文本模型
+          </div>
+        </div>
+
         <!-- Polish button | 润色按钮 -->
-        <button 
+        <button
           @click="handlePolish"
-          :disabled="isPolishing || !content.trim()"
+          :disabled="isPolishing || !content.trim() || !selectedModel"
           class="mt-2 px-3 py-1.5 text-xs rounded-lg bg-[var(--bg-tertiary)] hover:bg-[var(--accent-color)] hover:text-white border border-[var(--border-color)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
         >
           <n-spin v-if="isPolishing" :size="12" />
@@ -88,12 +105,14 @@
  * Text node component | 文本节点组件
  * Allows user to input and edit text content
  */
-import { ref, watch, nextTick } from 'vue'
+import { ref, watch, nextTick, computed } from 'vue'
 import { Handle, Position, useVueFlow } from '@vue-flow/core'
-import { NIcon, NSpin } from 'naive-ui'
+import { NIcon, NSpin, NSelect } from 'naive-ui'
 import { TrashOutline, ExpandOutline, CopyOutline, ImageOutline, VideocamOutline } from '@vicons/ionicons5'
 import { updateNode, removeNode, duplicateNode, addNode, addEdge, nodes } from '../../stores/canvas'
-import { useChat, useApiConfig } from '../../hooks'
+import { useChat } from '../../hooks'
+import { getAllTextModels, getModelConfigById } from '../../stores/providers'
+import { getPolishPrompt } from '../../utils/promptPolish'
 
 const props = defineProps({
   id: String,
@@ -103,17 +122,14 @@ const props = defineProps({
 // Vue Flow instance | Vue Flow 实例
 const { updateNodeInternals } = useVueFlow()
 
-// API config hook | API 配置 hook
-const { isConfigured: isApiConfigured } = useApiConfig()
-
-// Chat hook for polish | 润色用的 Chat hook
-const { send: sendChat } = useChat({
-  systemPrompt: '你是一个专业的AI绘画提示词专家。将用户输入的内容美化成高质量的生图提示词，包含风格、光线、構图、细节等要素。直接返回提示词，不要其他解释。',
-  model: 'gpt-4o-mini'
-})
+// Get all available text models | 获取所有可用的文本模型
+const textModels = computed(() => getAllTextModels())
 
 // Local content state | 本地内容状态
 const content = ref(props.data?.content || '')
+
+// Selected model state | 选择的模型状态
+const selectedModel = ref(props.data?.selectedModel || textModels.value[0]?.modelId || null)
 
 // Hover state | 悬浮状态
 const showActions = ref(false)
@@ -128,19 +144,38 @@ watch(() => props.data?.content, (newVal) => {
   }
 })
 
+watch(() => props.data?.selectedModel, (newVal) => {
+  if (newVal !== selectedModel.value) {
+    selectedModel.value = newVal
+  }
+})
+
 // Update content in store | 更新存储中的内容
 const updateContent = () => {
   updateNode(props.id, { content: content.value })
+}
+
+// Handle model change | 处理模型变化
+const handleModelChange = (modelId) => {
+  selectedModel.value = modelId
+  updateNode(props.id, { selectedModel: modelId })
 }
 
 // Handle AI polish | 处理 AI 润色
 const handlePolish = async () => {
   const input = content.value.trim()
   if (!input) return
-  
-  // Check API configuration | 检查 API 配置
-  if (!isApiConfigured.value) {
-    window.$message?.warning('请先配置 API Key')
+
+  // Check if model is selected | 检查是否选择了模型
+  if (!selectedModel.value) {
+    window.$message?.warning('请先选择一个文本模型')
+    return
+  }
+
+  // Get model config | 获取模型配置
+  const modelConfig = getModelConfigById(selectedModel.value)
+  if (!modelConfig || !modelConfig.apiKey) {
+    window.$message?.warning('请先在设置中配置 API Key')
     return
   }
 
@@ -148,13 +183,31 @@ const handlePolish = async () => {
   const originalContent = content.value
 
   try {
+    // Get polish prompt based on input language | 根据输入语言获取润色 prompt
+    const polishConfig = getPolishPrompt(input)
+
+    // Create chat hook with dynamic provider config | 使用动态提供商配置创建 chat hook
+    const { send: sendChat } = useChat({
+      systemPrompt: polishConfig.system,
+      model: selectedModel.value,
+      providerConfig: {
+        apiKey: modelConfig.apiKey,
+        baseUrl: modelConfig.baseUrl
+      }
+    })
+
+    // 在用户消息前加上语言要求，确保输出语言正确
+    const languageHint = polishConfig.language === 'zh'
+      ? '【请用中文润色以下内容】\n'
+      : '【Please polish the following content in English】\n'
+
     // Call chat API to polish the prompt | 调用 AI 润色提示词
-    const result = await sendChat(input, true)
-    
+    const result = await sendChat(languageHint + input, true)
+
     if (result) {
       content.value = result
       updateNode(props.id, { content: result })
-      window.$message?.success('提示词已润色')
+      window.$message?.success(`提示词已润色 (${polishConfig.label})`)
     }
   } catch (err) {
     content.value = originalContent
