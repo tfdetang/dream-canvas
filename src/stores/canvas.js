@@ -90,7 +90,7 @@ const getDefaultNodeData = (type) => {
     case 'imageConfig':
       return {
         prompt: '',
-        model: 'doubao-seedream-4-5-251128',
+        model: null,  // 不再硬编码，由组件根据上次使用或已配置的供应商动态选择
         size: '2048x2048',
         ratio: '1:1',
         quality: '4张 | 高清',

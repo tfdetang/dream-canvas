@@ -34,35 +34,69 @@ export class OpenAIAdapter extends BaseProviderAdapter {
     try {
       const formData = new FormData()
 
-      // 添加模型
-      formData.append('model', model)
-
       // 添加提示词
       formData.append('prompt', prompt)
 
+      // 添加模型
+      formData.append('model', model)
+
+      console.log('[OpenAI] Processing', referenceImages.length, 'reference images...')
+
       // 添加所有参考图片（支持多张）
+      // 注意：所有图片都使用相同的字段名 'image'，服务器会接收多个同名字段
       for (let i = 0; i < referenceImages.length; i++) {
         const refImage = referenceImages[i]
 
         if (refImage.base64) {
           // base64格式，转换为Blob
           const base64Data = refImage.base64.split(',')[1] || refImage.base64
-          const blob = this.base64ToBlob(base64Data)
-          formData.append('image', blob, `image_${i}.png`)
+          const mimeType = this.getMimeTypeFromBase64(refImage.base64)
+          const blob = this.base64ToBlob(base64Data, mimeType)
+          const filename = `reference_${i}.${this.getExtensionFromMimeType(mimeType)}`
+
+          formData.append('image', blob, filename)
+          console.log(`[OpenAI] Appended image ${i + 1}:`, {
+            type: 'base64',
+            mimeType,
+            filename,
+            size: blob.size
+          })
         } else if (refImage.url) {
           // URL格式，需要先下载转换为Blob
           const blob = await this.urlToBlob(refImage.url)
-          formData.append('image', blob, `image_${i}.png`)
+          const extension = this.getExtensionFromUrl(refImage.url) || this.getExtensionFromMimeType(blob.type)
+          const filename = `reference_${i}.${extension}`
+
+          formData.append('image', blob, filename)
+          console.log(`[OpenAI] Appended image ${i + 1}:`, {
+            type: 'url',
+            url: refImage.url,
+            filename,
+            size: blob.size,
+            blobType: blob.type
+          })
         }
+      }
+
+      // 添加可选参数
+      if (size && size !== 'auto') {
+        formData.append('size', size)
       }
 
       // 添加响应格式
       formData.append('response_format', 'url')
 
-      // 添加可选参数
-      if (size) {
-        formData.append('image_size', size)
+      // 打印 FormData 内容用于调试
+      console.log('[OpenAI] FormData entries:')
+      for (const [key, value] of formData.entries()) {
+        if (value instanceof Blob) {
+          console.log(`  ${key}: Blob(${value.size} bytes, ${value.type})`)
+        } else {
+          console.log(`  ${key}: ${value}`)
+        }
       }
+
+      console.log('[OpenAI] Sending edits request with', referenceImages.length, 'reference images')
 
       // 使用专门的multipart请求方法
       const response = await this.sendMultipartRequest('/images/edits', formData)
@@ -102,7 +136,7 @@ export class OpenAIAdapter extends BaseProviderAdapter {
   /**
    * 将base64转换为Blob
    */
-  base64ToBlob(base64) {
+  base64ToBlob(base64, mimeType = 'image/png') {
     const byteCharacters = atob(base64)
     const byteNumbers = new Array(byteCharacters.length)
 
@@ -111,7 +145,42 @@ export class OpenAIAdapter extends BaseProviderAdapter {
     }
 
     const byteArray = new Uint8Array(byteNumbers)
-    return new Blob([byteArray], { type: 'image/png' })
+    return new Blob([byteArray], { type: mimeType })
+  }
+
+  /**
+   * 从 base64 字符串中提取 MIME 类型
+   */
+  getMimeTypeFromBase64(base64) {
+    const match = base64.match(/^data:([^;]+);/)
+    return match ? match[1] : 'image/png'
+  }
+
+  /**
+   * 从 MIME 类型获取文件扩展名
+   */
+  getExtensionFromMimeType(mimeType) {
+    const mimeMap = {
+      'image/png': 'png',
+      'image/jpeg': 'jpg',
+      'image/jpg': 'jpg',
+      'image/gif': 'gif',
+      'image/webp': 'webp'
+    }
+    return mimeMap[mimeType] || 'png'
+  }
+
+  /**
+   * 从 URL 中提取文件扩展名
+   */
+  getExtensionFromUrl(url) {
+    try {
+      const pathname = new URL(url).pathname
+      const match = pathname.match(/\.([^.]+)$/)
+      return match ? match[1] : null
+    } catch {
+      return null
+    }
   }
 
   /**
@@ -125,25 +194,32 @@ export class OpenAIAdapter extends BaseProviderAdapter {
 
   /**
    * 发送multipart/form-data请求
-   * 不使用request工具，直接使用axios以支持FormData
+   * 使用原生 fetch API 以确保 FormData 正确发送（模仿 Cherry Studio）
    */
   async sendMultipartRequest(endpoint, formData) {
     try {
-      const axios = (await import('axios')).default
+      const url = `${this.config.baseUrl}${endpoint}`
 
-      const response = await axios.post(
-        `${this.config.baseUrl}${endpoint}`,
-        formData,
-        {
-          headers: {
-            'Authorization': `Bearer ${this.config.apiKey}`,
-            // 不要手动设置Content-Type，让浏览器自动设置并添加boundary
-          },
-          transformRequest: [(data) => data] // 防止axios重新序列化FormData
-        }
-      )
+      const headers = {
+        'Authorization': `Bearer ${this.config.apiKey}`
+        // 不设置 Content-Type，让浏览器自动设置并添加 boundary
+      }
 
-      return response.data
+      console.log('[OpenAI] Sending request to:', url)
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: formData
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: { message: response.statusText } }))
+        throw new Error(errorData.error?.message || `HTTP ${response.status}: ${response.statusText}`)
+      }
+
+      const data = await response.json()
+      return data
     } catch (error) {
       // 增强错误信息
       throw this.enhanceError(error)

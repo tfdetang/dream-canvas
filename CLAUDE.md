@@ -41,22 +41,70 @@ pnpm preview
 The project uses Vue's Composition API for state management instead of Pinia, with reactive stores in `/src/stores/`:
 
 - **`canvas.js`**: Core canvas state (nodes, edges, viewport), undo/redo history, project loading/saving
-- **`projects.js`**: Multi-project management with localStorage persistence
+- **`projects.js`**: Multi-project management with **IndexedDB persistence** (async operations)
 - **`api.js`**: API configuration (base URL, API key, model selection) - **DEPRECATED**, see providers below
 - **`theme.js`**: Dark/light theme switching
 - **`models.js`**: Available AI models configuration - **DEPRECATED**, see providers below
-- **`providers.js`**: Multi-provider system with API key management, model configuration, and custom model support
+- **`providers.js`**: Multi-provider system with localStorage persistence, debouncing, and plain object conversion
+
+**CRITICAL**: `projects.js` uses IndexedDB (async), while `providers.js` uses localStorage (sync). See Performance Considerations below.
+
+### IndexedDB Storage System
+
+**Key File**: `/src/utils/indexedDB.js`
+
+The project uses IndexedDB for project storage to support unlimited projects and large base64 images without quota errors.
+
+**Storage Capacity**:
+- IndexedDB: 50MB - 1GB+ (device dependent)
+- Old localStorage: 5-10MB limit (deprecated for projects)
+
+**Key Functions** (all async):
+```javascript
+// Initialize DB and perform migration if needed
+await initIndexedDB()
+
+// CRUD operations
+await getAllProjects()
+await getProject(id)
+await saveProject(project)
+await saveProjects(projects)
+await deleteProject(id)
+await clearAllProjects()
+
+// Storage info
+await getStorageInfo()
+```
+
+**Critical Pattern - Plain Object Conversion**:
+```javascript
+// IndexedDB cannot clone Vue Proxy objects
+const toPlainObject = (obj) => {
+  return JSON.parse(JSON.stringify(obj))
+}
+
+// Before saving to IndexedDB:
+const plainProject = toPlainObject(project)
+await db.put(plainProject)
+```
+
+**Migration**:
+- Auto-migrates from localStorage on first load
+- Migration flag: `ai-canvas-indexeddb-migrated`
+- Preserves old localStorage data as backup
+
+**IMPORTANT**: All project CRUD operations in `/src/stores/projects.js` are async and must be awaited.
 
 ### Multi-Provider System
 
 **Key Files**:
 - `/src/config/imageProviders.js`: Preset provider configurations and model type definitions
-- `/src/stores/providers.js`: Provider state management with localStorage persistence
+- `/src/stores/providers.js`: Provider state management with localStorage persistence, debouncing, and performance optimizations
 - `/src/api/providers/`: Adapter implementations for different providers
   - `base.js`: Base adapter class
-  - `openai.js`: OpenAI DALL-E adapter
-  - `doubao.js`: Doubao (ByteDance) adapter
-  - `gemini.js`: Google Gemini adapter
+  - `openai.js`: OpenAI DALL-E adapter (supports multi-image edits via native fetch)
+  - `doubao.js`: Doubao (ByteDance) adapter (supports reference images)
+  - `gemini.js`: Google Gemini adapter (base64 inline data)
   - `index.js`: Adapter factory
 
 **Features**:
@@ -64,7 +112,8 @@ The project uses Vue's Composition API for state management instead of Pinia, wi
 - **Model Types**: Three model categories (text, image, video) for filtering
 - **Custom Models**: Users can add their own models with configurable API format (openai/gemini/doubao)
 - **Automatic Provider Detection**: System auto-detects which provider to use based on selected model
-- **Reference Images**: Different providers handle reference images differently (OpenAI rejects them, Doubao uses `image_url`, Gemini uses base64 inlineData)
+- **Reference Images**: OpenAI uses `/images/edits` endpoint with FormData, Doubao uses `image_url`, Gemini uses base64 inlineData
+- **Multi-Image Support**: OpenAI adapter supports multiple reference images via FormData
 - **Backward Compatibility**: Auto-migrates old API key configuration to new provider system
 
 **Model Types**:

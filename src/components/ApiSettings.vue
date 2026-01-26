@@ -295,7 +295,8 @@ import {
   removeProvider,
   addCustomModel,
   removeModel,
-  hasConfiguredProvider
+  hasConfiguredProvider,
+  saveProvidersNow
 } from '@/stores/providers'
 import { PRESET_PROVIDERS, MODEL_TYPE_LABELS, MODEL_TYPES } from '@/config/imageProviders'
 import { API_FORMATS } from '@/api/providers'
@@ -417,24 +418,28 @@ const selectProviderToEdit = (providerId) => {
 }
 
 // 保存配置
-const handleSaveConfig = () => {
+const handleSaveConfig = async () => {
   if (!editingProviderId.value) return
 
-  // 更新供应商配置
+  // 更新供应商配置（但先不保存）
   updateProvider(editingProviderId.value, {
     baseUrl: editForm.value.baseUrl,
     apiKey: editForm.value.apiKey
-  })
+  }, true)  // skipSave = true
 
-  // 更新模型启用状态
+  // 批量更新模型启用状态（不触发保存）
   const provider = providers.value.find(p => p.id === editingProviderId.value)
   provider.models.forEach(model => {
     toggleModel(
       editingProviderId.value,
       model.id,
-      editForm.value.enabledModels.includes(model.id)
+      editForm.value.enabledModels.includes(model.id),
+      true  // skipSave = true，跳过每次的保存
     )
   })
+
+  // 最后只保存一次
+  await saveProvidersNow()
 
   window.$message?.success('配置已保存')
   editingProviderId.value = null

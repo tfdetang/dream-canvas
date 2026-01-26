@@ -55,11 +55,57 @@ const loadDefaultProviders = () => {
   saveProviders()
 }
 
+// 防抖计时器
+let saveTimer = null
+
+// 将响应式对象转换为普通对象
+const toPlainObject = (obj) => {
+  return JSON.parse(JSON.stringify(obj))
+}
+
 const saveProviders = () => {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({
-    activeProviderId: activeProviderId.value,
-    providers: providers.value
-  }))
+  // 清除之前的计时器
+  if (saveTimer) {
+    clearTimeout(saveTimer)
+  }
+
+  // 使用防抖，300ms 后才真正保存
+  saveTimer = setTimeout(() => {
+    try {
+      // 转换为普通对象以加速序列化
+      const plainData = {
+        activeProviderId: activeProviderId.value,
+        providers: toPlainObject(providers.value)
+      }
+
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(plainData))
+      console.log('[Providers] Saved to localStorage')
+    } catch (error) {
+      console.error('[Providers] Failed to save:', error)
+      window.$message?.error('保存供应商配置失败')
+    }
+  }, 300)
+}
+
+// 导出供外部立即保存使用
+export const saveProvidersNow = () => {
+  if (saveTimer) {
+    clearTimeout(saveTimer)
+    saveTimer = null
+  }
+
+  try {
+    const plainData = {
+      activeProviderId: activeProviderId.value,
+      providers: toPlainObject(providers.value)
+    }
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(plainData))
+    console.log('[Providers] Saved immediately to localStorage')
+  } catch (error) {
+    console.error('[Providers] Failed to save:', error)
+    window.$message?.error('保存供应商配置失败')
+  }
 }
 
 // 自动初始化
@@ -135,7 +181,7 @@ export const removeProvider = (providerId) => {
 
 // ========== 模型操作 ==========
 
-export const toggleModel = (providerId, modelId, enabled) => {
+export const toggleModel = (providerId, modelId, enabled, skipSave = false) => {
   const provider = providers.value.find(p => p.id === providerId)
   if (!provider) return false
 
@@ -143,7 +189,11 @@ export const toggleModel = (providerId, modelId, enabled) => {
   if (!model) return false
 
   model.enabled = enabled
-  saveProviders()
+
+  // 允许跳过保存，用于批量操作
+  if (!skipSave) {
+    saveProviders()
+  }
   return true
 }
 

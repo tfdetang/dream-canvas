@@ -168,6 +168,7 @@ import { getModelSizeOptions, getModelQualityOptions, getModelConfig, DEFAULT_IM
 import { providers, activeProviderId } from '@/stores/providers'
 import { createProviderAdapter } from '@/api/providers'
 import { MODEL_TYPES } from '@/config/imageProviders'
+import { getDefaultModel, setLastUsedModel } from '@/stores/lastUsedModels'
 
 const props = defineProps({
   id: String,
@@ -186,8 +187,9 @@ const { loading, error, images: generatedImages, generate } = useImageGeneration
 // Hover state | 悬浮状态
 const showActions = ref(false)
 
-// Local state | 本地状态
-const localModel = ref(props.data?.model || DEFAULT_IMAGE_MODEL)
+// Initialize model with default logic
+// 优先使用节点已有的model，否则使用智能默认值（后面在onMounted中设置）
+const localModel = ref(props.data?.model || null)
 const localSize = ref(props.data?.size || '2048x2048')
 const localQuality = ref(props.data?.quality || 'standard')
 
@@ -271,8 +273,18 @@ const displaySize = computed(() => {
 onMounted(() => {
   // Set default model if not set | 如果未设置则设置默认模型
   if (!localModel.value) {
-    localModel.value = DEFAULT_IMAGE_MODEL
-    updateNode(props.id, { model: localModel.value })
+    // 使用智能默认值：优先上次使用的模型，否则第一个已配置的模型
+    const defaultModel = getDefaultModel('imageConfig', modelOptions.value, MODEL_TYPES.IMAGE)
+    if (defaultModel) {
+      localModel.value = defaultModel
+      updateNode(props.id, { model: localModel.value })
+      console.log('[ImageConfigNode] Set default model:', defaultModel)
+    } else {
+      // 如果没有可用模型，使用后备默认值
+      localModel.value = DEFAULT_IMAGE_MODEL
+      updateNode(props.id, { model: localModel.value })
+      console.log('[ImageConfigNode] No available models, using fallback:', DEFAULT_IMAGE_MODEL)
+    }
   }
 })
 
@@ -328,6 +340,10 @@ const connectedRefImages = computed(() => {
 // Handle model selection | 处理模型选择
 const handleModelSelect = (key) => {
   localModel.value = key
+
+  // 记录用户选择的模型，下次新建时自动使用
+  setLastUsedModel('imageConfig', key)
+
   // Update size and quality to model's default | 更新为模型默认尺寸和画质
   const config = getModelConfig(key)
   const updates = { model: key }
@@ -340,6 +356,11 @@ const handleModelSelect = (key) => {
     updates.quality = config.defaultParams.quality
   }
   updateNode(props.id, updates)
+
+  // 强制 Vue Flow 重新计算节点尺寸，防止节点消失
+  setTimeout(() => {
+    updateNodeInternals(props.id)
+  }, 50)
 }
 
 // Handle quality selection | 处理画质选择
@@ -522,6 +543,9 @@ const handleGenerate = async (mode = 'auto') => {
       // 如果是 URL 格式
       return { url: img }
     })
+
+    // 记录用户使用的模型（生成图像时）
+    setLastUsedModel('imageConfig', localModel.value)
 
     // 调用适配器生成图像
     const results = await adapter.generateImage({

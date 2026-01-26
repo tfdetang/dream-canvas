@@ -793,16 +793,17 @@ watch(
 )
 
 // Initialize | 初始化
-onMounted(() => {
+onMounted(async () => {
   checkMobile()
   window.addEventListener('resize', checkMobile)
-  
+
   // Initialize projects store | 初始化项目存储
-  initProjectsStore()
-  
+  // IMPORTANT: Wait for IndexedDB initialization before loading project
+  await initProjectsStore()
+
   // Load project data | 加载项目数据
   loadProjectById(route.params.id)
-  
+
   // Check for initial prompt from home page | 检查来自首页的初始提示词
   const initialPrompt = sessionStorage.getItem('ai-canvas-initial-prompt')
   if (initialPrompt) {
