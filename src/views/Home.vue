@@ -399,8 +399,9 @@ const checkApiKeyAndNavigate = (callback) => {
 
 // Create new project | 创建新项目
 const createNewProject = () => {
-  checkApiKeyAndNavigate(() => {
-    const id = createProject('未命名项目')
+  checkApiKeyAndNavigate(async () => {
+    // 等待项目创建完成后再跳转
+    const id = await createProject('未命名项目')
     router.push(`/canvas/${id}`)
   })
 }

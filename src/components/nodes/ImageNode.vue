@@ -31,7 +31,7 @@
       <!-- Image preview area | 图片预览区域 -->
       <div class="p-3">
         <!-- Loading state | 加载状态 -->
-        <div v-if="data.loading"
+        <div v-if="imageLoading || data.loading"
           class="aspect-square rounded-xl bg-gradient-to-br from-cyan-400 via-blue-300 to-amber-200 flex flex-col items-center justify-center gap-3 relative overflow-hidden">
           <!-- Animated gradient overlay | 动画渐变遮罩 -->
           <div
@@ -56,14 +56,14 @@
         </div>
 
         <!-- Image display | 图片显示 -->
-        <div 
-          v-else-if="data.url" 
-          class="rounded-xl overflow-hidden relative" 
+        <div
+          v-else-if="displayUrl"
+          class="rounded-xl overflow-hidden relative"
           ref="imageContainerRef"
         >
-          <img 
-            :src="data.url" 
-            :alt="data.label" 
+          <img
+            :src="displayUrl"
+            :alt="data.label"
             class="w-full h-auto object-cover"
             :class="{ 'pointer-events-none': isInpaintMode }"
           />
@@ -224,20 +224,93 @@
 /**
  * Image node component | 图片节点组件
  * Displays and manages image content with loading state
+ *
+ * 性能优化：
+ * - 支持从 IndexedDB 懒加载图片（通过 imageUrl ID）
+ * - 向后兼容旧的 base64 url 字段
+ * - 添加加载状态和错误处理
  */
-import { ref, nextTick } from 'vue'
+import { ref, nextTick, onMounted, watch } from 'vue'
 import { Handle, Position, useVueFlow } from '@vue-flow/core'
 import { NIcon } from 'naive-ui'
 import { TrashOutline, ExpandOutline, ImageOutline, CloseCircleOutline, CopyOutline, VideocamOutline, DownloadOutline, EyeOutline, BrushOutline, RefreshOutline, ColorWandOutline } from '@vicons/ionicons5'
 import { updateNode, removeNode, duplicateNode, addNode, addEdge, nodes } from '../../stores/canvas'
+import { getImage } from '../../utils/imageStorage'
 
 const props = defineProps({
   id: String,
   data: Object
 })
 
+// 图片加载状态 | Image loading state
+const imageLoading = ref(false)
+const imageError = ref(false)
+const displayUrl = ref('')
+
 // Vue Flow instance | Vue Flow 实例
 const { updateNodeInternals } = useVueFlow()
+
+/**
+ * 加载图片数据 | Load image data
+ * 支持两种格式：
+ * 1. imageUrl: 图片 ID（从 IndexedDB 加载）
+ * 2. url: base64 数据（向后兼容）
+ */
+const loadImage = async () => {
+  // 重置状态
+  imageLoading.value = true
+  imageError.value = false
+
+  try {
+    // 优先使用 imageUrl（新格式：图片 ID）
+    if (props.data.imageUrl) {
+      const imageId = props.data.imageUrl
+
+      // 如果是图片 ID（以 img_ 开头），从 IndexedDB 加载
+      if (typeof imageId === 'string' && imageId.startsWith('img_')) {
+        const base64Data = await getImage(imageId)
+
+        if (base64Data) {
+          displayUrl.value = base64Data
+          console.log(`[ImageNode] Loaded image from IndexedDB: ${imageId}`)
+        } else {
+          throw new Error('图片未找到')
+        }
+      } else {
+        // 如果不是 ID 格式，直接作为 URL 使用
+        displayUrl.value = imageId
+      }
+    }
+    // 向后兼容：使用旧的 url 字段（base64 数据）
+    else if (props.data.url) {
+      displayUrl.value = props.data.url
+      console.log('[ImageNode] Using legacy base64 url')
+    }
+    // 没有图片数据
+    else {
+      displayUrl.value = ''
+    }
+  } catch (error) {
+    console.error('[ImageNode] Failed to load image:', error)
+    imageError.value = true
+    displayUrl.value = ''
+  } finally {
+    imageLoading.value = false
+  }
+}
+
+// 组件挂载时加载图片 | Load image on mount
+onMounted(() => {
+  loadImage()
+})
+
+// 监听数据变化，重新加载图片 | Watch for data changes and reload
+watch(
+  () => [props.data.imageUrl, props.data.url],
+  () => {
+    loadImage()
+  }
+)
 
 // Hover state | 悬浮状态
 const showActions = ref(true)
@@ -544,16 +617,20 @@ const handleImageGen = () => {
 
 // Handle preview | 处理预览
 const handlePreview = () => {
-  if (props.data.url) {
+  if (displayUrl.value) {
+    window.open(displayUrl.value, '_blank')
+  } else if (props.data.url) {
+    // 向后兼容旧的 url 字段
     window.open(props.data.url, '_blank')
   }
 }
 
 // Handle download | 处理下载
 const handleDownload = () => {
-  if (props.data.url) {
+  const url = displayUrl.value || props.data.url
+  if (url) {
     const link = document.createElement('a')
-    link.href = props.data.url
+    link.href = url
     link.download = props.data.fileName || `image_${Date.now()}.png`
     document.body.appendChild(link)
     link.click()

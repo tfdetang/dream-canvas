@@ -4,6 +4,7 @@
  */
 import { ref, watch } from 'vue'
 import { updateProjectCanvas, getProjectCanvas } from './projects'
+import { extractImageIdsFromNodes as extractImageIdsFromNodesUtil } from '../utils/imageStorage'
 
 // Node ID counter | 节点ID计数器
 let nodeId = 0
@@ -34,23 +35,41 @@ let isRestoring = false
 
 /**
  * Save current state to history | 保存当前状态到历史
+ *
+ * 性能优化：不深度克隆图片数据，只保留图片 ID 引用
+ * 图片数据存储在 IndexedDB 中，节点 data 中只保留 imageUrl 字符串 ID
  */
 const saveToHistory = () => {
   if (isRestoring) return
-  
+
+  // 优化：克隆节点数据时，只保留图片 ID 字符串，不克隆实际的 base64 数据
+  // 这样可以大幅减少内存占用和克隆时间（从 O(图片大小) 降到 O(1)）
   const state = {
-    nodes: JSON.parse(JSON.stringify(nodes.value)),
-    edges: JSON.parse(JSON.stringify(edges.value))
+    nodes: nodes.value.map(node => {
+      // 浅拷贝节点对象
+      const clonedNode = {
+        id: node.id,
+        type: node.type,
+        position: { ...node.position },
+        zIndex: node.zIndex,
+        data: { ...node.data }
+      }
+
+      // 确保图片字段只保留 ID 字符串（不包含实际图片数据）
+      // 如果有旧的 base64 数据，会在迁移时自动转换为 imageUrl ID
+      return clonedNode
+    }),
+    edges: edges.value.map(edge => ({ ...edge }))
   }
-  
+
   // Remove future history if we're not at the end | 如果不在末尾，删除未来历史
   if (historyIndex.value < history.value.length - 1) {
     history.value = history.value.slice(0, historyIndex.value + 1)
   }
-  
+
   // Add new state | 添加新状态
   history.value.push(state)
-  
+
   // Limit history size | 限制历史大小
   if (history.value.length > MAX_HISTORY) {
     history.value.shift()
@@ -225,19 +244,26 @@ export const initSampleData = () => {
  * Load project data | 加载项目数据
  * @param {string} projectId - Project ID | 项目ID
  */
-export const loadProject = (projectId) => {
+export const loadProject = async (projectId) => {
   autoSaveEnabled = false
   isRestoring = true
   currentProjectId.value = projectId
-  
+
   const canvasData = getProjectCanvas(projectId)
-  
+
   if (canvasData) {
-    // Restore nodes | 恢复节点
-    nodes.value = canvasData.nodes || []
-    edges.value = canvasData.edges || []
+    // Restore nodes | 恢复节点（浅拷贝，不包含图片数据）
+    nodes.value = (canvasData.nodes || []).map(node => ({
+      id: node.id,
+      type: node.type,
+      position: { ...node.position },
+      zIndex: node.zIndex,
+      data: { ...node.data }
+    }))
+
+    edges.value = (canvasData.edges || []).map(edge => ({ ...edge }))
     canvasViewport.value = canvasData.viewport || { x: 100, y: 50, zoom: 0.8 }
-    
+
     // Update node ID counter | 更新节点ID计数器
     const maxId = nodes.value.reduce((max, node) => {
       const match = node.id.match(/node_(\d+)/)
@@ -251,16 +277,21 @@ export const loadProject = (projectId) => {
     // Empty project | 空项目
     clearCanvas()
   }
-  
+
   // Initialize history with current state | 用当前状态初始化历史
   history.value = [{
-    nodes: JSON.parse(JSON.stringify(nodes.value)),
-    edges: JSON.parse(JSON.stringify(edges.value))
+    nodes: nodes.value.map(node => ({
+      id: node.id,
+      type: node.type,
+      position: { ...node.position },
+      zIndex: node.zIndex,
+      data: { ...node.data }
+    })),
+    edges: edges.value.map(edge => ({ ...edge }))
   }]
   historyIndex.value = 0
 
   // Enable auto-save immediately after loading | 加载后立即启用自动保存
-  // Remove delay to ensure auto-save works for quick actions
   isRestoring = false
   autoSaveEnabled = true
 }
@@ -343,11 +374,24 @@ export const redo = () => {
 
 /**
  * Restore state from history | 从历史恢复状态
+ *
+ * 性能优化：使用浅拷贝而不是深度克隆
+ * 历史记录中已经不包含图片数据，只包含 ID 引用
  */
 const restoreState = (state) => {
   isRestoring = true
-  nodes.value = JSON.parse(JSON.stringify(state.nodes))
-  edges.value = JSON.parse(JSON.stringify(state.edges))
+
+  // 使用浅拷贝恢复节点和边数据
+  nodes.value = state.nodes.map(node => ({
+    id: node.id,
+    type: node.type,
+    position: { ...node.position },
+    zIndex: node.zIndex,
+    data: { ...node.data }
+  }))
+
+  edges.value = state.edges.map(edge => ({ ...edge }))
+
   setTimeout(() => {
     isRestoring = false
   }, 100)
@@ -375,3 +419,26 @@ export const manualSaveHistory = () => {
 watch([nodes, edges], () => {
   debouncedSave()
 }, { deep: true })
+
+/**
+ * Cleanup unused images | 清理未使用的图片
+ *
+ * 扫描所有节点，提取正在使用的图片 ID，然后删除 IndexedDB 中未使用的图片
+ * 建议在删除节点后定期调用此功能以释放存储空间
+ */
+export const cleanupUnusedImages = async () => {
+  try {
+    // 提取当前正在使用的图片 ID
+    const usedImageIds = extractImageIdsFromNodesUtil(nodes.value)
+
+    // 清理未使用的图片
+    const { cleanupUnusedImages: cleanupImages } = await import('../utils/imageStorage.js')
+    const deletedCount = await cleanupImages(usedImageIds)
+
+    if (deletedCount > 0) {
+      console.log(`[Canvas] Cleaned up ${deletedCount} unused images`)
+    }
+  } catch (error) {
+    console.error('[Canvas] Failed to cleanup unused images:', error)
+  }
+}

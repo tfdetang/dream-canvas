@@ -216,8 +216,9 @@ export class OpenAIAdapter extends BaseProviderAdapter {
   /**
    * 发送multipart/form-data请求
    * 使用原生 fetch API 以确保 FormData 正确发送（模仿 Cherry Studio）
+   * 添加了超时机制以防止长时间挂起
    */
-  async sendMultipartRequest(endpoint, formData) {
+  async sendMultipartRequest(endpoint, formData, timeoutMs = 300000) {  // 默认 5 分钟超时
     try {
       const url = `${this.config.baseUrl}${endpoint}`
 
@@ -227,12 +228,24 @@ export class OpenAIAdapter extends BaseProviderAdapter {
       }
 
       console.log('[OpenAI] Sending request to:', url)
+      console.log('[OpenAI] Timeout set to:', timeoutMs, 'ms (', timeoutMs / 1000, 'seconds)')
+
+      // 创建超时控制器
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => {
+        controller.abort()
+        console.error('[OpenAI] Request timeout after', timeoutMs / 1000, 'seconds')
+      }, timeoutMs)
 
       const response = await fetch(url, {
         method: 'POST',
         headers,
-        body: formData
+        body: formData,
+        signal: controller.signal  // 添加中止信号
       })
+
+      // 清除超时定时器
+      clearTimeout(timeoutId)
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: { message: response.statusText } }))
@@ -242,6 +255,13 @@ export class OpenAIAdapter extends BaseProviderAdapter {
       const data = await response.json()
       return data
     } catch (error) {
+      // 检查是否是超时错误
+      if (error.name === 'AbortError') {
+        const timeoutError = new Error(`请求超时（${timeoutMs / 1000}秒），图片生成时间过长。建议：\n1. 使用更小的图片尺寸\n2. 减少参考图片数量\n3. 检查网络连接`)
+        timeoutError.name = 'TimeoutError'
+        throw timeoutError
+      }
+
       // 增强错误信息
       throw this.enhanceError(error)
     }
