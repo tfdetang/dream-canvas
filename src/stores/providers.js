@@ -201,12 +201,17 @@ export const addCustomModel = (providerId, modelConfig) => {
   const provider = providers.value.find(p => p.id === providerId)
   if (!provider) return false
 
+  console.log('[Providers] Adding custom model:', modelConfig)
+  console.log('[Providers] Custom params:', modelConfig.customParams)
+
   provider.models.push({
     id: modelConfig.id,
     name: modelConfig.name || modelConfig.id,
     enabled: true,
     ...modelConfig
   })
+
+  console.log('[Providers] Model added, current models:', provider.models)
 
   saveProviders()
   return true
@@ -217,6 +222,28 @@ export const removeModel = (providerId, modelId) => {
   if (!provider) return false
 
   provider.models = provider.models.filter(m => m.id !== modelId)
+  saveProviders()
+  return true
+}
+
+// 更新模型配置
+export const updateModel = (providerId, modelId, updates) => {
+  const provider = providers.value.find(p => p.id === providerId)
+  if (!provider) return false
+
+  const modelIndex = provider.models.findIndex(m => m.id === modelId)
+  if (modelIndex === -1) return false
+
+  console.log('[Providers] Updating model:', modelId, updates)
+
+  // 更新模型配置
+  provider.models[modelIndex] = {
+    ...provider.models[modelIndex],
+    ...updates
+  }
+
+  console.log('[Providers] Model updated:', provider.models[modelIndex])
+
   saveProviders()
   return true
 }

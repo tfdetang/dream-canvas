@@ -1,7 +1,7 @@
 import { BaseProviderAdapter } from './base'
 
 export class GeminiAdapter extends BaseProviderAdapter {
-  async generateImage({ prompt, model, size, referenceImages = [] }) {
+  async generateImage({ prompt, model, size, referenceImages = [], customParams = {} }) {
     // 验证参数
     this.validateParams({ prompt, model, referenceImages })
 
@@ -40,9 +40,13 @@ export class GeminiAdapter extends BaseProviderAdapter {
       ],
       generationConfig: {
         // 将 size 转换为 aspectRatio
-        aspectRatio: this.sizeToAspectRatio(size || '1024x1024')
+        aspectRatio: this.sizeToAspectRatio(size || '1024x1024'),
+        ...customParams  // 🎯 合并自定义参数
       }
     }
+
+    console.log('[Gemini] Request data:', data)
+    console.log('[Gemini] Custom params:', customParams)
 
     const response = await this.sendRequest(endpoint, data)
 

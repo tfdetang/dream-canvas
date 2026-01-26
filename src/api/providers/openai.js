@@ -2,24 +2,30 @@ import { request } from '@/utils'
 import { BaseProviderAdapter } from './base'
 
 export class OpenAIAdapter extends BaseProviderAdapter {
-  async generateImage({ prompt, model = 'dall-e-3', size, quality, referenceImages = [] }) {
+  async generateImage({ prompt, model = 'dall-e-3', size, quality, referenceImages = [], customParams = {} }) {
     // 验证参数
     this.validateParams({ prompt, model, referenceImages })
 
     // 如果有参考图片，尝试使用图生图功能
     if (referenceImages.length > 0) {
-      return this.generateImageWithReference({ prompt, model, size, referenceImages })
+      return this.generateImageWithReference({ prompt, model, size, referenceImages, customParams })
     }
 
-    // 标准文生图
-    const response = await this.sendRequest('/images/generations', {
+    // 构建请求体
+    const requestBody = {
       model,
       prompt,
       n: 1,
       size: size || '1024x1024',
       quality: quality || 'standard',
-      response_format: 'url'
-    })
+      response_format: 'url',
+      ...customParams  // 合并自定义参数
+    }
+
+    console.log('[OpenAI] Request body:', requestBody)
+
+    // 标准文生图
+    const response = await this.sendRequest('/images/generations', requestBody)
 
     // 验证响应
     this.validateResponse(response, 'data')
@@ -30,8 +36,11 @@ export class OpenAIAdapter extends BaseProviderAdapter {
   /**
    * 使用参考图片生成（图生图）
    */
-  async generateImageWithReference({ prompt, model, size, referenceImages }) {
+  async generateImageWithReference({ prompt, model, size, referenceImages, customParams = {} }) {
     try {
+      console.log('[OpenAI] generateImageWithReference called with customParams:', customParams)
+      console.log('[OpenAI] customParams keys:', Object.keys(customParams))
+
       const formData = new FormData()
 
       // 添加提示词
@@ -82,6 +91,12 @@ export class OpenAIAdapter extends BaseProviderAdapter {
       if (size && size !== 'auto') {
         formData.append('size', size)
       }
+
+      // 添加自定义参数到 FormData
+      Object.keys(customParams).forEach(key => {
+        formData.append(key, customParams[key])
+        console.log(`[OpenAI] Added custom param: ${key} = ${customParams[key]}`)
+      })
 
       // 添加响应格式
       formData.append('response_format', 'url')

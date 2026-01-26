@@ -1,7 +1,7 @@
 import { BaseProviderAdapter } from './base'
 
 export class DoubaoAdapter extends BaseProviderAdapter {
-  async generateImage({ prompt, model, size, referenceImages = [] }) {
+  async generateImage({ prompt, model, size, referenceImages = [], customParams = {} }) {
     // 验证参数
     this.validateParams({ prompt, model, referenceImages })
 
@@ -9,7 +9,8 @@ export class DoubaoAdapter extends BaseProviderAdapter {
       model,
       prompt,
       size: size || '1024x1024',
-      n: 1
+      n: 1,
+      ...customParams  // 🎯 合并自定义参数
     }
 
     // 豆包支持参考图（通过 image_url 传递）
@@ -22,6 +23,9 @@ export class DoubaoAdapter extends BaseProviderAdapter {
         data.image_url = refImage.base64
       }
     }
+
+    console.log('[Doubao] Request data:', data)
+    console.log('[Doubao] Custom params:', customParams)
 
     const response = await this.sendRequest('/images/generations', data)
 

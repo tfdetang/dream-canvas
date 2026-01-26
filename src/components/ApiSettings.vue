@@ -151,6 +151,15 @@
                       {{ model.apiFormat }}
                     </n-tag>
                   </div>
+                  <!-- 编辑模型按钮 -->
+                  <n-button
+                    text
+                    size="tiny"
+                    type="primary"
+                    @click="handleEditModel(model.id)"
+                  >
+                    编辑
+                  </n-button>
                   <!-- 删除模型按钮（仅自定义模型） -->
                   <n-button
                     v-if="editingProvider?.type === 'custom'"
@@ -188,14 +197,15 @@
           </n-button>
 
           <!-- 添加模型表单（对话框） -->
-          <n-modal v-model:show="showAddModelForm" preset="card" title="添加自定义模型" style="width: 500px;">
-            <n-form :model="newModelForm" label-placement="left" label-width="100">
+          <n-modal v-model:show="showAddModelForm" preset="card" :title="editingModelId ? '编辑模型' : '添加自定义模型'" style="width: 500px;">
+            <n-form :model="newModelForm" label-placement="left" label-width="100" @submit.prevent>
 
               <!-- 模型ID -->
               <n-form-item label="模型 ID" required>
                 <n-input
                   v-model:value="newModelForm.id"
                   placeholder="例如: gpt-4, dall-e-3"
+                  :disabled="!!editingModelId"
                 />
               </n-form-item>
 
@@ -230,12 +240,108 @@
                 <n-dynamic-tags v-model:value="newModelForm.sizes" />
               </n-form-item>
 
+              <n-divider title-placement="left">自定义参数</n-divider>
+
+              <!-- 自定义参数列表 -->
+              <div v-if="newModelForm.customParams && newModelForm.customParams.length > 0" class="space-y-3 mb-3">
+                <div
+                  v-for="(param, idx) in newModelForm.customParams"
+                  :key="idx"
+                  class="p-3 border border-gray-200 dark:border-gray-700 rounded-lg"
+                >
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm font-medium">{{ param.label }} ({{ param.key }})</span>
+                    <n-button
+                      text
+                      size="tiny"
+                      type="error"
+                      @click="removeCustomParam(idx)"
+                    >
+                      删除
+                    </n-button>
+                  </div>
+                  <div class="text-xs text-gray-500">
+                    选项: {{ param.options.join(', ') }}
+                  </div>
+                </div>
+              </div>
+
+              <!-- 添加自定义参数表单 -->
+              <div class="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg space-y-3">
+                <div class="text-xs font-medium text-gray-700 dark:text-gray-300">添加新参数</div>
+
+                <div>
+                  <div class="text-xs text-gray-500 mb-1">参数名称</div>
+                  <n-input
+                    v-model:value="newParamForm.key"
+                    placeholder="例如: aspect_ratio"
+                    size="small"
+                  />
+                </div>
+
+                <div>
+                  <div class="text-xs text-gray-500 mb-1">显示名称</div>
+                  <n-input
+                    v-model:value="newParamForm.label"
+                    placeholder="例如: 宽高比"
+                    size="small"
+                  />
+                </div>
+
+                <div>
+                  <div class="text-xs text-gray-500 mb-1">可选值</div>
+                  <div class="space-y-2">
+                    <!-- 已添加的选项 -->
+                    <div v-if="newParamForm.options.length > 0" class="flex flex-wrap gap-1 mb-2">
+                      <n-tag
+                        v-for="(opt, idx) in newParamForm.options"
+                        :key="idx"
+                        closable
+                        size="small"
+                        @close="newParamForm.options.splice(idx, 1)"
+                      >
+                        {{ opt }}
+                      </n-tag>
+                    </div>
+
+                    <!-- 添加选项输入框 -->
+                    <div class="flex gap-2">
+                      <n-input
+                        v-model:value="newOptionInput"
+                        placeholder="输入选项值，如: 1:1"
+                        size="small"
+                        @keydown.enter.prevent="addOption"
+                      />
+                      <n-button
+                        size="small"
+                        @click.prevent="addOption"
+                      >
+                        添加
+                      </n-button>
+                    </div>
+                  </div>
+                </div>
+
+                <n-button
+                  size="small"
+                  type="primary"
+                  dashed
+                  block
+                  @click.prevent="addCustomParam"
+                >
+                  <template #icon>
+                    <n-icon><AddOutline /></n-icon>
+                  </template>
+                  添加此参数到模型
+                </n-button>
+              </div>
+
             </n-form>
 
             <template #footer>
               <div class="flex justify-end gap-2">
-                <n-button @click="showAddModelForm = false">取消</n-button>
-                <n-button type="primary" @click="handleAddModel">添加</n-button>
+                <n-button @click="showAddModelForm = false; editingModelId = null">取消</n-button>
+                <n-button type="primary" @click="handleAddModel">{{ editingModelId ? '保存' : '添加' }}</n-button>
               </div>
             </template>
           </n-modal>
@@ -295,6 +401,7 @@ import {
   removeProvider,
   addCustomModel,
   removeModel,
+  updateModel,
   hasConfiguredProvider,
   saveProvidersNow
 } from '@/stores/providers'
@@ -333,13 +440,25 @@ const editForm = ref({
 
 // 添加自定义模型表单
 const showAddModelForm = ref(false)
+const editingModelId = ref(null) // 正在编辑的模型 ID
 const newModelForm = ref({
   id: '',
   name: '',
   type: MODEL_TYPES.IMAGE,
   apiFormat: API_FORMATS.OPENAI,
-  sizes: ['1024x1024']
+  sizes: ['1024x1024'],
+  customParams: [] // 新增：自定义参数数组
 })
+
+// 新增参数表单
+const newParamForm = ref({
+  key: '',
+  label: '',
+  options: []
+})
+
+// 新增选项输入框
+const newOptionInput = ref('')
 
 // 模型类型选项
 const modelTypeOptions = computed(() => {
@@ -480,6 +599,96 @@ const handleDeleteProvider = (providerId) => {
   }
 }
 
+// 添加选项到可选值列表
+const addOption = () => {
+  const value = newOptionInput.value.trim()
+  if (!value) {
+    window.$message?.warning('请输入选项值')
+    return
+  }
+
+  if (newParamForm.value.options.includes(value)) {
+    window.$message?.warning('该选项已存在')
+    return
+  }
+
+  newParamForm.value.options.push(value)
+  newOptionInput.value = ''
+  window.$message?.success(`已添加选项: ${value}`)
+}
+
+// 添加自定义参数
+const addCustomParam = () => {
+  if (!newParamForm.value.key) {
+    window.$message?.warning('请输入参数名称')
+    return
+  }
+
+  if (!newParamForm.value.label) {
+    window.$message?.warning('请输入显示名称')
+    return
+  }
+
+  if (!newParamForm.value.options || newParamForm.value.options.length === 0) {
+    window.$message?.warning('请至少添加一个可选值')
+    return
+  }
+
+  // 添加到自定义参数列表
+  if (!newModelForm.value.customParams) {
+    newModelForm.value.customParams = []
+  }
+
+  newModelForm.value.customParams.push({
+    key: newParamForm.value.key,
+    label: newParamForm.value.label,
+    options: [...newParamForm.value.options],
+    defaultValue: newParamForm.value.options[0] // 默认值为第一个选项
+  })
+
+  // 重置参数表单
+  newParamForm.value = {
+    key: '',
+    label: '',
+    options: []
+  }
+  newOptionInput.value = ''
+
+  window.$message?.success('参数已添加到模型')
+}
+
+// 删除自定义参数
+const removeCustomParam = (index) => {
+  newModelForm.value.customParams.splice(index, 1)
+  window.$message?.success('参数已删除')
+}
+
+// 编辑模型
+const handleEditModel = (modelId) => {
+  if (!editingProviderId.value) return
+
+  const provider = providers.value.find(p => p.id === editingProviderId.value)
+  const model = provider?.models.find(m => m.id === modelId)
+
+  if (!model) {
+    window.$message?.error('未找到模型')
+    return
+  }
+
+  // 填充表单
+  editingModelId.value = modelId
+  newModelForm.value = {
+    id: model.id,
+    name: model.name,
+    type: model.type,
+    apiFormat: model.apiFormat || API_FORMATS.OPENAI,
+    sizes: model.sizes ? [...model.sizes] : [],
+    customParams: model.customParams ? JSON.parse(JSON.stringify(model.customParams)) : []
+  }
+
+  showAddModelForm.value = true
+}
+
 // 添加自定义模型
 const handleAddModel = () => {
   if (!editingProviderId.value) {
@@ -497,26 +706,55 @@ const handleAddModel = () => {
     return
   }
 
-  // 添加模型到供应商
-  addCustomModel(editingProviderId.value, {
-    id: newModelForm.value.id,
-    name: newModelForm.value.name,
-    type: newModelForm.value.type,
-    apiFormat: newModelForm.value.apiFormat,
-    enabled: true,
-    sizes: newModelForm.value.sizes
-  })
+  // 编辑模式
+  if (editingModelId.value) {
+    const modelData = {
+      name: newModelForm.value.name,
+      type: newModelForm.value.type,
+      apiFormat: newModelForm.value.apiFormat,
+      sizes: newModelForm.value.sizes,
+      customParams: newModelForm.value.customParams || []
+    }
 
-  window.$message?.success('模型添加成功')
+    console.log('[ApiSettings] Updating model:', editingModelId.value, modelData)
+
+    updateModel(editingProviderId.value, editingModelId.value, modelData)
+    window.$message?.success('模型更新成功')
+  } else {
+    // 新增模式
+    const modelData = {
+      id: newModelForm.value.id,
+      name: newModelForm.value.name,
+      type: newModelForm.value.type,
+      apiFormat: newModelForm.value.apiFormat,
+      enabled: true,
+      sizes: newModelForm.value.sizes,
+      customParams: newModelForm.value.customParams || []
+    }
+
+    console.log('[ApiSettings] Adding model with data:', modelData)
+    console.log('[ApiSettings] Custom params count:', modelData.customParams.length)
+
+    addCustomModel(editingProviderId.value, modelData)
+    window.$message?.success('模型添加成功')
+  }
 
   // 重置表单并关闭对话框
+  editingModelId.value = null
   newModelForm.value = {
     id: '',
     name: '',
     type: MODEL_TYPES.IMAGE,
     apiFormat: API_FORMATS.OPENAI,
-    sizes: ['1024x1024']
+    sizes: ['1024x1024'],
+    customParams: []
   }
+  newParamForm.value = {
+    key: '',
+    label: '',
+    options: []
+  }
+  newOptionInput.value = ''
   showAddModelForm.value = false
 }
 

@@ -64,6 +64,23 @@
           </div>
         </div>
 
+        <!-- Custom parameters | 自定义参数 -->
+        <div
+          v-for="param in customParamsList"
+          :key="param.key"
+          class="flex items-center justify-between"
+        >
+          <span class="text-xs text-[var(--text-secondary)]">{{ param.label }}</span>
+          <n-dropdown :options="param.options" @select="(value) => handleCustomParamSelect(param.key, value)">
+            <button class="flex items-center gap-1 text-sm text-[var(--text-primary)] hover:text-[var(--accent-color)]">
+              {{ getCustomParamDisplay(param.key, param.options) }}
+              <n-icon :size="12">
+                <ChevronForwardOutline />
+              </n-icon>
+            </button>
+          </n-dropdown>
+        </div>
+
         <!-- Model tips | 模型提示 -->
         <div v-if="currentModelConfig?.tips" class="text-xs text-[var(--text-tertiary)] bg-[var(--bg-tertiary)] rounded px-2 py-1">
           💡 {{ currentModelConfig.tips }}
@@ -192,6 +209,8 @@ const showActions = ref(false)
 const localModel = ref(props.data?.model || null)
 const localSize = ref(props.data?.size || '2048x2048')
 const localQuality = ref(props.data?.quality || 'standard')
+// 自定义参数存储
+const customParamsValues = ref(props.data?.customParams || {})
 
 // 节点绑定的供应商（创建时确定）
 const nodeProvider = ref(props.data.providerId || activeProviderId.value)
@@ -268,6 +287,68 @@ const displaySize = computed(() => {
   const option = sizeOptions.value.find(o => o.key === localSize.value)
   return option?.label || localSize.value
 })
+
+// 获取当前模型的自定义参数列表
+const customParamsList = computed(() => {
+  // 根据选中的模型查找其配置
+  let modelConfig = null
+
+  for (const provider of providers.value) {
+    if (!provider.enabled || !provider.models) continue
+
+    const model = provider.models.find(m => m.id === localModel.value)
+    if (model) {
+      modelConfig = model
+      break
+    }
+  }
+
+  console.log('[ImageConfigNode] Current model:', localModel.value)
+  console.log('[ImageConfigNode] Model config:', modelConfig)
+  console.log('[ImageConfigNode] Custom params:', modelConfig?.customParams)
+
+  if (!modelConfig?.customParams || modelConfig.customParams.length === 0) {
+    return []
+  }
+
+  // 🎯 初始化默认值：如果 customParamsValues 中没有这个参数的值，就设置默认值
+  modelConfig.customParams.forEach(param => {
+    if (!customParamsValues.value[param.key]) {
+      const defaultValue = param.defaultValue || param.options[0]
+      customParamsValues.value[param.key] = defaultValue
+      console.log(`[ImageConfigNode] Auto-initialized param: ${param.key} = ${defaultValue}`)
+    }
+  })
+
+  // 转换为下拉选项格式
+  return modelConfig.customParams.map(param => ({
+    key: param.key,
+    label: param.label,
+    options: param.options.map(opt => ({
+      key: opt,
+      label: opt
+    })),
+    defaultValue: param.defaultValue || param.options[0]
+  }))
+})
+
+// 获取自定义参数显示值
+const getCustomParamDisplay = (paramKey, options) => {
+  const value = customParamsValues.value[paramKey]
+  if (!value && options.length > 0) {
+    // 如果没有设置值，返回第一个选项
+    return options[0].label
+  }
+  return value || '请选择'
+}
+
+// 处理自定义参数选择
+const handleCustomParamSelect = (paramKey, value) => {
+  customParamsValues.value[paramKey] = value
+  updateNode(props.id, {
+    customParams: { ...customParamsValues.value }
+  })
+}
 
 // Initialize on mount | 挂载时初始化
 onMounted(() => {
@@ -355,6 +436,11 @@ const handleModelSelect = (key) => {
     localQuality.value = config.defaultParams.quality
     updates.quality = config.defaultParams.quality
   }
+
+  // 🎯 清空旧的自定义参数值（切换模型时重置）
+  customParamsValues.value = {}
+  updates.customParams = {}
+
   updateNode(props.id, updates)
 
   // 强制 Vue Flow 重新计算节点尺寸，防止节点消失
@@ -547,13 +633,18 @@ const handleGenerate = async (mode = 'auto') => {
     // 记录用户使用的模型（生成图像时）
     setLastUsedModel('imageConfig', localModel.value)
 
+    console.log('[ImageConfigNode] Before generateImage, customParamsValues:', customParamsValues.value)
+    console.log('[ImageConfigNode] customParamsValues keys:', Object.keys(customParamsValues.value))
+    console.log('[ImageConfigNode] customParamsValues content:', JSON.stringify(customParamsValues.value))
+
     // 调用适配器生成图像
     const results = await adapter.generateImage({
       prompt: prompt || '生成图像',
       model: localModel.value,
       size: localSize.value,
       quality: localQuality.value,
-      referenceImages: referenceImages
+      referenceImages: referenceImages,
+      customParams: customParamsValues.value // 传递自定义参数
     })
 
     // Update image node with generated URL | 更新图片节点 URL
