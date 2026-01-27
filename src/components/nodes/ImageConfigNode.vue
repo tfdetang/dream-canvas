@@ -3,8 +3,9 @@
   <div class="image-config-node-wrapper">
     <!-- Image config node | 文生图配置节点 -->
     <div
-      class="image-config-node bg-[var(--bg-secondary)] rounded-xl border min-w-[300px] transition-[border-color,box-shadow] duration-200"
-      :class="data.selected ? 'border-1 border-blue-500 shadow-lg shadow-blue-500/20' : 'border border-[var(--border-color)]'">
+      class="image-config-node resizable-node bg-[var(--bg-secondary)] rounded-xl border relative transition-[border-color,box-shadow] duration-200"
+      :class="data.selected ? 'border-1 border-blue-500 shadow-lg shadow-blue-500/20' : 'border border-[var(--border-color)]'"
+      :style="nodeStyle">
       <!-- Header | 头部 -->
       <div class="flex items-center justify-between px-3 py-2 border-b border-[var(--border-color)]">
         <span class="text-sm font-medium text-[var(--text-secondary)]">{{ data.label }}</span>
@@ -137,6 +138,17 @@
       <!-- Handles | 连接点 -->
       <Handle type="target" :position="Position.Left" id="left" class="!bg-[var(--accent-color)]" />
       <Handle type="source" :position="Position.Right" id="right" class="!bg-[var(--accent-color)]" />
+
+      <!-- Resize handle | 调整大小手柄 -->
+      <div 
+        class="resize-handle"
+        @mousedown="startResize"
+        @touchstart.prevent="startResize"
+      >
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+          <path d="M9 1v8H1" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+        </svg>
+      </div>
     </div>
 
     <!-- Hover action buttons | 悬浮操作按钮 -->
@@ -163,7 +175,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { Handle, Position, useVueFlow } from '@vue-flow/core'
 import { NIcon, NDropdown, NSpin, NTag } from 'naive-ui'
 import { ChevronDownOutline, ChevronForwardOutline, CopyOutline, TrashOutline, RefreshOutline, AddOutline } from '@vicons/ionicons5'
-import { useImageGeneration, useApiConfig } from '../../hooks'
+import { useImageGeneration, useApiConfig, useNodeResize } from '../../hooks'
 import { updateNode, addNode, addEdge, nodes, edges, duplicateNode, removeNode } from '../../stores/canvas'
 import { getModelQualityOptions, getModelConfig, DEFAULT_IMAGE_MODEL } from '../../stores/models'
 import { providers, activeProviderId } from '@/stores/providers'
@@ -185,8 +197,13 @@ const { isConfigured } = useApiConfig()
 // Image generation hook | 图片生成 hook
 const { loading, error, images: generatedImages, generate } = useImageGeneration()
 
-// Hover state | 悬浮状态
-const showActions = ref(false)
+// Node resize | 节点调整大小
+const { nodeStyle, startResize } = useNodeResize(props.id, props.data, {
+  minWidth: 280,
+  minHeight: 200,
+  maxWidth: 450,
+  maxHeight: 500
+})
 
 // Initialize model with default logic
 // 优先使用节点已有的model，否则使用智能默认值（后面在onMounted中设置）
@@ -664,6 +681,8 @@ watch(
 .image-config-node {
   cursor: default;
   position: relative;
+  min-width: 280px;
+  min-height: 200px;
 }
 
 /* Hover actions - hidden by default, shown on wrapper hover | 悬浮操作 - 默认隐藏，wrapper 悬浮时显示 */
@@ -676,5 +695,32 @@ watch(
 .image-config-node-wrapper:hover .node-actions {
   opacity: 1;
   pointer-events: auto;
+}
+
+/* Resize handle | 调整大小手柄 */
+.resize-handle {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 16px;
+  height: 16px;
+  cursor: se-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  opacity: 0;
+  transition: opacity 0.15s ease-out;
+  border-radius: 0 0 8px 0;
+  z-index: 10;
+}
+
+.image-config-node:hover .resize-handle {
+  opacity: 0.6;
+}
+
+.resize-handle:hover {
+  opacity: 1 !important;
+  color: var(--accent-color);
 }
 </style>

@@ -3,8 +3,9 @@
   <div class="text-node-wrapper">
     <!-- Text node | 文本节点 -->
     <div
-      class="text-node bg-[var(--bg-secondary)] rounded-xl border min-w-[280px] max-w-[350px] relative transition-[border-color,box-shadow] duration-200"
-      :class="data.selected ? 'border-1 border-blue-500 shadow-lg shadow-blue-500/20' : 'border border-[var(--border-color)]'">
+      class="text-node resizable-node bg-[var(--bg-secondary)] rounded-xl border relative transition-[border-color,box-shadow] duration-200"
+      :class="data.selected ? 'border-1 border-blue-500 shadow-lg shadow-blue-500/20' : 'border border-[var(--border-color)]'"
+      :style="nodeStyle">
       <!-- Header | 头部 -->
       <div class="flex items-center justify-between px-3 py-2 border-b border-[var(--border-color)]">
         <span class="text-sm font-medium text-[var(--text-secondary)]">{{ data.label }}</span>
@@ -23,9 +24,9 @@
       </div>
 
       <!-- Content | 内容 -->
-      <div class="p-3">
+      <div class="p-3 flex flex-col h-[calc(100%-41px)]">
         <textarea v-model="content" @blur="updateContent" @wheel.stop @mousedown.stop
-          class="w-full bg-transparent resize-none outline-none text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] min-h-[80px]"
+          class="w-full flex-1 bg-transparent resize-none outline-none text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]"
           placeholder="请输入文本内容..." />
 
         <!-- Model selector | 模型选择器 -->
@@ -60,6 +61,16 @@
       <Handle type="source" :position="Position.Right" id="right" class="!bg-[var(--accent-color)]" />
       <Handle type="target" :position="Position.Left" id="left" class="!bg-[var(--accent-color)]" />
 
+      <!-- Resize handle | 调整大小手柄 -->
+      <div 
+        class="resize-handle"
+        @mousedown="startResize"
+        @touchstart.prevent="startResize"
+      >
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+          <path d="M9 1v8H1" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+        </svg>
+      </div>
     </div>
 
     <!-- Hover action buttons | 悬浮操作按钮 -->
@@ -110,7 +121,7 @@ import { Handle, Position, useVueFlow } from '@vue-flow/core'
 import { NIcon, NSpin, NSelect } from 'naive-ui'
 import { TrashOutline, ExpandOutline, CopyOutline, ImageOutline, VideocamOutline } from '@vicons/ionicons5'
 import { updateNode, removeNode, duplicateNode, addNode, addEdge, nodes } from '../../stores/canvas'
-import { useChat } from '../../hooks'
+import { useChat, useNodeResize } from '../../hooks'
 import { getAllTextModels, getModelConfigById } from '../../stores/providers'
 import { getPolishPrompt } from '../../utils/promptPolish'
 
@@ -121,6 +132,14 @@ const props = defineProps({
 
 // Vue Flow instance | Vue Flow 实例
 const { updateNodeInternals } = useVueFlow()
+
+// Node resize | 节点调整大小
+const { nodeStyle, startResize } = useNodeResize(props.id, props.data, {
+  minWidth: 250,
+  minHeight: 150,
+  maxWidth: 500,
+  maxHeight: 400
+})
 
 // Get all available text models | 获取所有可用的文本模型
 const textModels = computed(() => getAllTextModels())
@@ -293,6 +312,8 @@ const handleVideoGen = () => {
 .text-node {
   cursor: default;
   position: relative;
+  min-width: 250px;
+  min-height: 150px;
 }
 
 .text-node textarea {
@@ -309,5 +330,31 @@ const handleVideoGen = () => {
 .text-node-wrapper:hover .node-actions {
   opacity: 1;
   pointer-events: auto;
+}
+
+/* Resize handle | 调整大小手柄 */
+.resize-handle {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 16px;
+  height: 16px;
+  cursor: se-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  opacity: 0;
+  transition: opacity 0.15s ease-out;
+  border-radius: 0 0 8px 0;
+}
+
+.text-node:hover .resize-handle {
+  opacity: 0.6;
+}
+
+.resize-handle:hover {
+  opacity: 1 !important;
+  color: var(--accent-color);
 }
 </style>

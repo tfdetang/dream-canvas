@@ -3,8 +3,9 @@
   <div class="image-node-wrapper">
     <!-- Image node | 图片节点 -->
     <div
-      class="image-node bg-[var(--bg-secondary)] rounded-xl border min-w-[200px] max-w-[280px] relative transition-[border-color,box-shadow] duration-200"
-      :class="data.selected ? 'border-1 border-blue-500 shadow-lg shadow-blue-500/20' : 'border border-[var(--border-color)]'">
+      class="image-node resizable-node bg-[var(--bg-secondary)] rounded-xl border relative transition-[border-color,box-shadow] duration-200"
+      :class="data.selected ? 'border-1 border-blue-500 shadow-lg shadow-blue-500/20' : 'border border-[var(--border-color)]'"
+      :style="nodeStyle">
       <!-- Header | 头部 -->
       <div class="px-3 py-2 border-b border-[var(--border-color)]">
         <div class="flex items-center justify-between">
@@ -151,6 +152,17 @@
       <!-- Handles | 连接点 -->
       <Handle type="source" :position="Position.Right" id="right" class="!bg-[var(--accent-color)]" />
       <Handle type="target" :position="Position.Left" id="left" class="!bg-[var(--accent-color)]" />
+
+      <!-- Resize handle | 调整大小手柄 -->
+      <div 
+        class="resize-handle"
+        @mousedown="startResize"
+        @touchstart.prevent="startResize"
+      >
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+          <path d="M9 1v8H1" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+        </svg>
+      </div>
     </div>
 
     <!-- Hover action buttons | 悬浮操作按钮 -->
@@ -225,10 +237,19 @@ import { NIcon } from 'naive-ui'
 import { TrashOutline, ExpandOutline, ImageOutline, CloseCircleOutline, CopyOutline, VideocamOutline, DownloadOutline, EyeOutline, BrushOutline, RefreshOutline, ColorWandOutline } from '@vicons/ionicons5'
 import { updateNode, removeNode, duplicateNode, addNode, addEdge, nodes } from '../../stores/canvas'
 import { getImage } from '../../utils/imageStorage'
+import { useNodeResize } from '../../hooks'
 
 const props = defineProps({
   id: String,
   data: Object
+})
+
+// Node resize | 节点调整大小
+const { nodeStyle, startResize } = useNodeResize(props.id, props.data, {
+  minWidth: 180,
+  minHeight: 200,
+  maxWidth: 500,
+  maxHeight: 600
 })
 
 // 图片加载状态 | Image loading state
@@ -677,6 +698,8 @@ const handleVideoGen = () => {
 .image-node {
   cursor: default;
   position: relative;
+  min-width: 180px;
+  min-height: 200px;
 }
 
 /* Hover actions - hidden by default, shown on wrapper hover | 悬浮操作 - 默认隐藏，wrapper 悬浮时显示 */
@@ -717,5 +740,32 @@ const handleVideoGen = () => {
 /* Inpaint mode cursor | 涂抹模式光标 */
 .cursor-none {
   cursor: none;
+}
+
+/* Resize handle | 调整大小手柄 */
+.resize-handle {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 16px;
+  height: 16px;
+  cursor: se-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  opacity: 0;
+  transition: opacity 0.15s ease-out;
+  border-radius: 0 0 8px 0;
+  z-index: 10;
+}
+
+.image-node:hover .resize-handle {
+  opacity: 0.6;
+}
+
+.resize-handle:hover {
+  opacity: 1 !important;
+  color: var(--accent-color);
 }
 </style>

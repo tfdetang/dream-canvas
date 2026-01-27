@@ -2,8 +2,9 @@
   <!-- Video config node wrapper | 视频配置节点包裹层 -->
   <div class="video-config-node-wrapper relative">
     <!-- Video config node | 视频配置节点 -->
-    <div class="video-config-node bg-[var(--bg-secondary)] rounded-xl border min-w-[300px] transition-[border-color,box-shadow] duration-200"
-      :class="data.selected ? 'border-1 border-blue-500 shadow-lg shadow-blue-500/20' : 'border border-[var(--border-color)]'">
+    <div class="video-config-node resizable-node bg-[var(--bg-secondary)] rounded-xl border relative transition-[border-color,box-shadow] duration-200"
+      :class="data.selected ? 'border-1 border-blue-500 shadow-lg shadow-blue-500/20' : 'border border-[var(--border-color)]'"
+      :style="nodeStyle">
       <!-- Header | 头部 -->
       <div class="flex items-center justify-between px-3 py-2 border-b border-[var(--border-color)]">
         <span class="text-sm font-medium text-[var(--text-secondary)]">{{ data.label || '视频生成' }}</span>
@@ -114,6 +115,17 @@
       <!-- Handles | 连接点 -->
       <Handle type="target" :position="Position.Left" id="left" class="!bg-[var(--accent-color)]" />
       <Handle type="source" :position="Position.Right" id="right" class="!bg-[var(--accent-color)]" />
+
+      <!-- Resize handle | 调整大小手柄 -->
+      <div 
+        class="resize-handle"
+        @mousedown="startResize"
+        @touchstart.prevent="startResize"
+      >
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+          <path d="M9 1v8H1" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+        </svg>
+      </div>
     </div>
 
     <!-- Hover action buttons | 悬浮操作按钮 -->
@@ -140,7 +152,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { Handle, Position, useVueFlow } from '@vue-flow/core'
 import { NIcon, NDropdown, NSpin, NTag } from 'naive-ui'
 import { ChevronForwardOutline, ChevronDownOutline, TrashOutline, VideocamOutline, CopyOutline } from '@vicons/ionicons5'
-import { useVideoGeneration, useApiConfig } from '../../hooks'
+import { useVideoGeneration, useApiConfig, useNodeResize } from '../../hooks'
 import { updateNode, removeNode, duplicateNode, addNode, addEdge, nodes, edges } from '../../stores/canvas'
 import { getModelRatioOptions, getModelDurationOptions, getModelConfig, DEFAULT_VIDEO_MODEL } from '../../stores/models'
 import { providers, activeProviderId } from '@/stores/providers'
@@ -159,6 +171,14 @@ const { isConfigured } = useApiConfig()
 
 // Video generation hook | 视频生成 hook
 const { loading, error, status, video: generatedVideo, progress, generate } = useVideoGeneration()
+
+// Node resize | 节点调整大小
+const { nodeStyle, startResize } = useNodeResize(props.id, props.data, {
+  minWidth: 280,
+  minHeight: 200,
+  maxWidth: 450,
+  maxHeight: 500
+})
 
 // Local state | 本地状态
 const localModel = ref(props.data?.model || DEFAULT_VIDEO_MODEL)
@@ -475,6 +495,8 @@ watch(
 .video-config-node {
   cursor: default;
   position: relative;
+  min-width: 280px;
+  min-height: 200px;
 }
 
 /* Hover actions - hidden by default, shown on wrapper hover | 悬浮操作 - 默认隐藏，wrapper 悬浮时显示 */
@@ -487,5 +509,32 @@ watch(
 .video-config-node-wrapper:hover .node-actions {
   opacity: 1;
   pointer-events: auto;
+}
+
+/* Resize handle | 调整大小手柄 */
+.resize-handle {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 16px;
+  height: 16px;
+  cursor: se-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  opacity: 0;
+  transition: opacity 0.15s ease-out;
+  border-radius: 0 0 8px 0;
+  z-index: 10;
+}
+
+.video-config-node:hover .resize-handle {
+  opacity: 0.6;
+}
+
+.resize-handle:hover {
+  opacity: 1 !important;
+  color: var(--accent-color);
 }
 </style>

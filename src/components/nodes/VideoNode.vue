@@ -3,9 +3,9 @@
   <div class="video-node-wrapper relative">
     <!-- Video node | 视频节点 -->
     <div 
-      class="video-node bg-[var(--bg-secondary)] rounded-xl border w-[400px] relative transition-[border-color,box-shadow] duration-200"
+      class="video-node resizable-node bg-[var(--bg-secondary)] rounded-xl border relative transition-[border-color,box-shadow] duration-200"
       :class="data.selected ? 'border-1 border-blue-500 shadow-lg shadow-blue-500/20' : 'border border-[var(--border-color)]'"
-      
+      :style="nodeStyle"
     >
     <!-- Header | 头部 -->
     <div class="px-3 py-2 border-b border-[var(--border-color)]">
@@ -93,6 +93,17 @@
     <!-- Handles | 连接点 -->
     <Handle type="source" :position="Position.Right" id="right" class="!bg-[var(--accent-color)]" />
     <Handle type="target" :position="Position.Left" id="left" class="!bg-[var(--accent-color)]" />
+
+    <!-- Resize handle | 调整大小手柄 -->
+    <div 
+      class="resize-handle"
+      @mousedown="startResize"
+      @touchstart.prevent="startResize"
+    >
+      <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+        <path d="M9 1v8H1" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      </svg>
+    </div>
     </div>
 
     <!-- Hover action buttons | 悬浮操作按钮 -->
@@ -142,10 +153,19 @@ import { Handle, Position } from '@vue-flow/core'
 import { NIcon, NSpin } from 'naive-ui'
 import { TrashOutline, ExpandOutline, VideocamOutline, CopyOutline, CloseCircleOutline, DownloadOutline, EyeOutline } from '@vicons/ionicons5'
 import { updateNode, removeNode, duplicateNode } from '../../stores/canvas'
+import { useNodeResize } from '../../hooks'
 
 const props = defineProps({
   id: String,
   data: Object
+})
+
+// Node resize | 节点调整大小
+const { nodeStyle, startResize } = useNodeResize(props.id, props.data, {
+  minWidth: 300,
+  minHeight: 250,
+  maxWidth: 600,
+  maxHeight: 500
 })
 
 // Handle file upload | 处理文件上传
@@ -212,6 +232,8 @@ const handleDuplicate = () => {
 
 .video-node {
   cursor: default;
+  min-width: 300px;
+  min-height: 250px;
 }
 
 /* Hover actions - hidden by default, shown on wrapper hover | 悬浮操作 - 默认隐藏，wrapper 悬浮时显示 */
@@ -224,5 +246,32 @@ const handleDuplicate = () => {
 .video-node-wrapper:hover .node-actions {
   opacity: 1;
   pointer-events: auto;
+}
+
+/* Resize handle | 调整大小手柄 */
+.resize-handle {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 16px;
+  height: 16px;
+  cursor: se-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  opacity: 0;
+  transition: opacity 0.15s ease-out;
+  border-radius: 0 0 8px 0;
+  z-index: 10;
+}
+
+.video-node:hover .resize-handle {
+  opacity: 0.6;
+}
+
+.resize-handle:hover {
+  opacity: 1 !important;
+  color: var(--accent-color);
 }
 </style>

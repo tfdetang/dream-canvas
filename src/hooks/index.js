@@ -17,3 +17,6 @@ export {
 
 // Workflow Orchestrator Hook | 工作流编排 Hook
 export { useWorkflowOrchestrator } from './useWorkflowOrchestrator'
+
+// Node Resize Hook | 节点调整大小 Hook
+export { useNodeResize } from './useNodeResize'
