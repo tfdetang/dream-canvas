@@ -332,16 +332,19 @@ const debouncedSave = () => {
     clearTimeout(saveTimeout)
   }
   
+  // Increased delay to 1000ms to reduce frequent saves | 增加延迟到 1000ms 以减少频繁保存
   saveTimeout = setTimeout(() => {
     saveProject()
-  }, 500)
+  }, 1000)
 }
 
 /**
  * Update viewport and save | 更新视口并保存
+ * Note: Uses debounce to avoid frequent saves during pan/zoom | 使用防抖避免拖动/缩放时频繁保存
  */
 export const updateViewport = (viewport) => {
   canvasViewport.value = viewport
+  // Only trigger save if viewport change is significant enough | 只在视口变化足够大时触发保存
   debouncedSave()
 }
 
@@ -416,10 +419,9 @@ export const manualSaveHistory = () => {
   saveToHistory()
 }
 
-// Watch for changes and auto-save (only save to project, not history) | 监听变化并自动保存（仅保存项目，不保存历史）
-watch([nodes, edges], () => {
-  debouncedSave()
-}, { deep: true })
+// Note: Removed deep watch to avoid performance issues | 移除深度监听以避免性能问题
+// Auto-save is now triggered explicitly by specific operations (addNode, updateNode, etc.)
+// 自动保存现在由特定操作明确触发（addNode、updateNode 等）
 
 /**
  * Cleanup unused images | 清理未使用的图片

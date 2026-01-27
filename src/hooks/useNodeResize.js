@@ -29,6 +29,11 @@ export function useNodeResize(nodeId, nodeData, options = {}) {
   const startY = ref(0)
   const startWidth = ref(0)
   const startHeight = ref(0)
+  
+  // Temporary dimensions during resize | 拖动时的临时尺寸
+  const tempWidth = ref(0)
+  const tempHeight = ref(0)
+  let rafId = null
 
   // Get current node data from store reactively | 从 store 响应式获取当前节点数据
   const currentNodeData = computed(() => {
@@ -39,12 +44,14 @@ export function useNodeResize(nodeId, nodeData, options = {}) {
   // Node style with dimensions | 带尺寸的节点样式
   const nodeStyle = computed(() => {
     const style = {}
-    const data = currentNodeData.value
-    if (data?.width) {
-      style.width = `${data.width}px`
-    }
-    if (data?.height) {
-      style.height = `${data.height}px`
+    // Use temp dimensions during resize, otherwise use store data | 拖动时使用临时尺寸，否则使用 store 数据
+    if (isResizing.value) {
+      if (tempWidth.value) style.width = `${tempWidth.value}px`
+      if (tempHeight.value) style.height = `${tempHeight.value}px`
+    } else {
+      const data = currentNodeData.value
+      if (data?.width) style.width = `${data.width}px`
+      if (data?.height) style.height = `${data.height}px`
     }
     return style
   })
@@ -94,24 +101,39 @@ export function useNodeResize(nodeId, nodeData, options = {}) {
     const clientX = e.touches ? e.touches[0].clientX : e.clientX
     const clientY = e.touches ? e.touches[0].clientY : e.clientY
     
-    // Account for canvas zoom level | 考虑画布缩放级别
-    const zoom = canvasViewport.value?.zoom || 1
-    const deltaX = (clientX - startX.value) / zoom
-    const deltaY = (clientY - startY.value) / zoom
+    // Use RAF to throttle updates | 使用 RAF 节流更新
+    if (rafId) return
     
-    // Calculate new dimensions with constraints | 计算新尺寸（带约束）
-    const newWidth = Math.max(minWidth, Math.min(maxWidth, startWidth.value + deltaX))
-    const newHeight = Math.max(minHeight, Math.min(maxHeight, startHeight.value + deltaY))
-    
-    // Update node data | 更新节点数据
-    updateNode(nodeId, { 
-      width: Math.round(newWidth),
-      height: Math.round(newHeight)
+    rafId = requestAnimationFrame(() => {
+      rafId = null
+      
+      // Account for canvas zoom level | 考虑画布缩放级别
+      const zoom = canvasViewport.value?.zoom || 1
+      const deltaX = (clientX - startX.value) / zoom
+      const deltaY = (clientY - startY.value) / zoom
+      
+      // Calculate new dimensions with constraints | 计算新尺寸（带约束）
+      tempWidth.value = Math.round(Math.max(minWidth, Math.min(maxWidth, startWidth.value + deltaX)))
+      tempHeight.value = Math.round(Math.max(minHeight, Math.min(maxHeight, startHeight.value + deltaY)))
     })
   }
 
   // Stop resize | 停止调整大小
   const stopResize = () => {
+    // Cancel any pending RAF | 取消待处理的 RAF
+    if (rafId) {
+      cancelAnimationFrame(rafId)
+      rafId = null
+    }
+    
+    // Update store with final dimensions | 用最终尺寸更新 store
+    if (tempWidth.value && tempHeight.value) {
+      updateNode(nodeId, { 
+        width: tempWidth.value,
+        height: tempHeight.value
+      })
+    }
+    
     isResizing.value = false
     
     // Remove global listeners | 移除全局监听器
@@ -127,6 +149,7 @@ export function useNodeResize(nodeId, nodeData, options = {}) {
 
   // Cleanup on unmount | 卸载时清理
   onUnmounted(() => {
+    if (rafId) cancelAnimationFrame(rafId)
     document.removeEventListener('mousemove', onResize)
     document.removeEventListener('mouseup', stopResize)
     document.removeEventListener('touchmove', onResize)
