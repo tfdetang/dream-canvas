@@ -77,6 +77,8 @@
         :max-zoom="2"
         :snap-to-grid="true"
         :snap-grid="[20, 20]"
+        :elevate-edges-on-select="false"
+        :elevate-nodes-on-select="false"
         @connect="onConnect"
         @node-click="onNodeClick"
         @pane-click="onPaneClick"
@@ -84,12 +86,13 @@
         @edges-change="onEdgesChange"
         class="canvas-flow"
       >
-        <Background v-if="showGrid" :gap="20" :size="1" />
+        <Background v-if="showGrid" :gap="20" :size="1" pattern-color="var(--border-color)" />
         <MiniMap 
           v-if="!isMobile"
           position="bottom-right"
           :pannable="true"
           :zoomable="true"
+          :mask-color="'rgba(0, 0, 0, 0.1)'"
         />
       </VueFlow>
 

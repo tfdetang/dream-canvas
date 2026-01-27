@@ -1,9 +1,9 @@
 <template>
   <!-- Text node wrapper for hover area | 文本节点包裹层，扩展悬浮区域 -->
-  <div class="text-node-wrapper" @mouseenter="showActions = true" @mouseleave="showActions = false">
+  <div class="text-node-wrapper">
     <!-- Text node | 文本节点 -->
     <div
-      class="text-node bg-[var(--bg-secondary)] rounded-xl border min-w-[280px] max-w-[350px] relative transition-all duration-200"
+      class="text-node bg-[var(--bg-secondary)] rounded-xl border min-w-[280px] max-w-[350px] relative transition-[border-color,box-shadow] duration-200"
       :class="data.selected ? 'border-1 border-blue-500 shadow-lg shadow-blue-500/20' : 'border border-[var(--border-color)]'">
       <!-- Header | 头部 -->
       <div class="flex items-center justify-between px-3 py-2 border-b border-[var(--border-color)]">
@@ -64,37 +64,37 @@
 
     <!-- Hover action buttons | 悬浮操作按钮 -->
     <!-- Top right - Copy button | 右上角 - 复制按钮 -->
-    <div v-show="showActions" class="absolute -top-5 right-12 z-[1000]">
+    <div class="node-actions absolute -top-5 right-12 z-[1000]">
       <button @click="handleDuplicate"
-        class="action-btn group p-2 bg-white rounded-lg transition-all border border-gray-200 flex items-center gap-0 hover:gap-1.5 w-max">
-        <n-icon :size="16" class="text-gray-600">
+        class="action-btn group p-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600 flex items-center gap-0 hover:gap-1.5 w-max transition-[gap] duration-150">
+        <n-icon :size="16" class="text-gray-600 dark:text-gray-300">
           <CopyOutline />
         </n-icon>
         <span
-          class="text-xs text-gray-600 max-w-0 overflow-hidden group-hover:max-w-[60px] transition-all duration-200 whitespace-nowrap">复制</span>
+          class="text-xs text-gray-600 dark:text-gray-300 max-w-0 overflow-hidden group-hover:max-w-[60px] transition-[max-width] duration-150 whitespace-nowrap">复制</span>
       </button>
     </div>
 
     <!-- Right side - Action buttons | 右侧 - 操作按钮 -->
-    <div v-show="showActions"
-      class="absolute right-10 top-1/2 -translate-y-1/2 translate-x-full flex flex-col gap-2 z-[1000]">
+    <div
+      class="node-actions absolute right-10 top-1/2 -translate-y-1/2 translate-x-full flex flex-col gap-2 z-[1000]">
       <!-- Image generation button | 图片生成按钮 -->
       <button @click="handleImageGen"
-        class="action-btn group p-2 bg-white rounded-lg transition-all border border-gray-200 flex items-center gap-0 hover:gap-1.5 w-max">
-        <n-icon :size="16" class="text-gray-600">
+        class="action-btn group p-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600 flex items-center gap-0 hover:gap-1.5 w-max transition-[gap] duration-150">
+        <n-icon :size="16" class="text-gray-600 dark:text-gray-300">
           <ImageOutline />
         </n-icon>
         <span
-          class="text-xs text-gray-600 max-w-0 overflow-hidden group-hover:max-w-[80px] transition-all duration-200 whitespace-nowrap">图片生成</span>
+          class="text-xs text-gray-600 dark:text-gray-300 max-w-0 overflow-hidden group-hover:max-w-[80px] transition-[max-width] duration-150 whitespace-nowrap">图片生成</span>
       </button>
       <!-- Video generation button | 视频生成按钮 -->
       <button @click="handleVideoGen"
-        class="action-btn group p-2 bg-white rounded-lg transition-all border border-gray-200 flex items-center gap-0 hover:gap-1.5 w-max">
-        <n-icon :size="16" class="text-gray-600">
+        class="action-btn group p-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600 flex items-center gap-0 hover:gap-1.5 w-max transition-[gap] duration-150">
+        <n-icon :size="16" class="text-gray-600 dark:text-gray-300">
           <VideocamOutline />
         </n-icon>
         <span
-          class="text-xs text-gray-600 max-w-0 overflow-hidden group-hover:max-w-[80px] transition-all duration-200 whitespace-nowrap">视频生成</span>
+          class="text-xs text-gray-600 dark:text-gray-300 max-w-0 overflow-hidden group-hover:max-w-[80px] transition-[max-width] duration-150 whitespace-nowrap">视频生成</span>
       </button>
     </div>
   </div>
@@ -130,9 +130,6 @@ const content = ref(props.data?.content || '')
 
 // Selected model state | 选择的模型状态
 const selectedModel = ref(props.data?.selectedModel || textModels.value[0]?.modelId || null)
-
-// Hover state | 悬浮状态
-const showActions = ref(false)
 
 // Polish loading state | 润色加载状态
 const isPolishing = ref(false)
@@ -300,5 +297,17 @@ const handleVideoGen = () => {
 
 .text-node textarea {
   cursor: text;
+}
+
+/* Hover actions - hidden by default, shown on wrapper hover | 悬浮操作 - 默认隐藏，wrapper 悬浮时显示 */
+.node-actions {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease-out;
+}
+
+.text-node-wrapper:hover .node-actions {
+  opacity: 1;
+  pointer-events: auto;
 }
 </style>

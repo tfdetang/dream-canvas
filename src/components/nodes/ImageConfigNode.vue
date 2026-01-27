@@ -1,9 +1,9 @@
 <template>
   <!-- Image config node wrapper for hover area | 文生图配置节点包裹层，扩展悬浮区域 -->
-  <div class="image-config-node-wrapper" @mouseenter="showActions = true" @mouseleave="showActions = false">
+  <div class="image-config-node-wrapper">
     <!-- Image config node | 文生图配置节点 -->
     <div
-      class="image-config-node bg-[var(--bg-secondary)] rounded-xl border min-w-[300px] transition-all duration-200"
+      class="image-config-node bg-[var(--bg-secondary)] rounded-xl border min-w-[300px] transition-[border-color,box-shadow] duration-200"
       :class="data.selected ? 'border-1 border-blue-500 shadow-lg shadow-blue-500/20' : 'border border-[var(--border-color)]'">
       <!-- Header | 头部 -->
       <div class="flex items-center justify-between px-3 py-2 border-b border-[var(--border-color)]">
@@ -141,14 +141,14 @@
 
     <!-- Hover action buttons | 悬浮操作按钮 -->
     <!-- Top right - Copy button | 右上角 - 复制按钮 -->
-    <div v-show="showActions" class="absolute -top-5 right-0 z-[1000]">
+    <div class="node-actions absolute -top-5 right-0 z-[1000]">
       <button @click="handleDuplicate"
-        class="action-btn group p-2 bg-white rounded-lg transition-all border border-gray-200 flex items-center gap-0 hover:gap-1.5">
-        <n-icon :size="16" class="text-gray-600">
+        class="action-btn group p-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600 flex items-center gap-0 hover:gap-1.5 transition-[gap] duration-150">
+        <n-icon :size="16" class="text-gray-600 dark:text-gray-300">
           <CopyOutline />
         </n-icon>
         <span
-          class="text-xs text-gray-600 max-w-0 overflow-hidden group-hover:max-w-[60px] transition-all duration-200 whitespace-nowrap">复制</span>
+          class="text-xs text-gray-600 dark:text-gray-300 max-w-0 overflow-hidden group-hover:max-w-[60px] transition-[max-width] duration-150 whitespace-nowrap">复制</span>
       </button>
     </div>
   </div>
@@ -664,5 +664,17 @@ watch(
 .image-config-node {
   cursor: default;
   position: relative;
+}
+
+/* Hover actions - hidden by default, shown on wrapper hover | 悬浮操作 - 默认隐藏，wrapper 悬浮时显示 */
+.node-actions {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease-out;
+}
+
+.image-config-node-wrapper:hover .node-actions {
+  opacity: 1;
+  pointer-events: auto;
 }
 </style>

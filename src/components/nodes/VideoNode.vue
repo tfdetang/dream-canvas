@@ -1,9 +1,9 @@
 <template>
   <!-- Video node wrapper for hover area | 视频节点包裹层，扩展悬浮区域 -->
-  <div class="video-node-wrapper relative" @mouseenter="showActions = true" @mouseleave="showActions = false">
+  <div class="video-node-wrapper relative">
     <!-- Video node | 视频节点 -->
     <div 
-      class="video-node bg-[var(--bg-secondary)] rounded-xl border w-[400px] relative transition-all duration-200"
+      class="video-node bg-[var(--bg-secondary)] rounded-xl border w-[400px] relative transition-[border-color,box-shadow] duration-200"
       :class="data.selected ? 'border-1 border-blue-500 shadow-lg shadow-blue-500/20' : 'border border-[var(--border-color)]'"
       
     >
@@ -97,39 +97,36 @@
 
     <!-- Hover action buttons | 悬浮操作按钮 -->
     <!-- Top right - Copy button | 右上角 - 复制按钮 -->
-    <div 
-      v-show="showActions"
-      class="absolute -top-5 right-12 z-[1000]"
-    >
+    <div class="node-actions absolute -top-5 right-12 z-[1000]">
       <button 
         @click="handleDuplicate"
-        class="action-btn group p-2 bg-white rounded-lg transition-all border border-gray-200 flex items-center gap-0 hover:gap-1.5 w-max"
+        class="action-btn group p-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600 flex items-center gap-0 hover:gap-1.5 w-max transition-[gap] duration-150"
       >
-        <n-icon :size="16" class="text-gray-600"><CopyOutline /></n-icon>
-        <span class="text-xs text-gray-600 max-w-0 overflow-hidden group-hover:max-w-[60px] transition-all duration-200 whitespace-nowrap">复制</span>
+        <n-icon :size="16" class="text-gray-600 dark:text-gray-300"><CopyOutline /></n-icon>
+        <span class="text-xs text-gray-600 dark:text-gray-300 max-w-0 overflow-hidden group-hover:max-w-[60px] transition-[max-width] duration-150 whitespace-nowrap">复制</span>
       </button>
     </div>
 
     <!-- Right side - Action buttons | 右侧 - 操作按钮 -->
     <div 
-      v-show="showActions && data.url"
-      class="absolute right-10 top-20 -translate-y-1/2 translate-x-full flex flex-col gap-2 z-[1000]"
+      v-if="data.url"
+      class="node-actions absolute right-10 top-20 -translate-y-1/2 translate-x-full flex flex-col gap-2 z-[1000]"
     >
       <!-- Preview button | 预览按钮 -->
       <button 
         @click="handlePreview"
-        class="action-btn group p-2 bg-white rounded-lg transition-all border border-gray-200 flex items-center gap-0 hover:gap-1.5 w-max"
+        class="action-btn group p-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600 flex items-center gap-0 hover:gap-1.5 w-max transition-[gap] duration-150"
       >
-        <n-icon :size="16" class="text-gray-600"><EyeOutline /></n-icon>
-        <span class="text-xs text-gray-600 max-w-0 overflow-hidden group-hover:max-w-[80px] transition-all duration-200 whitespace-nowrap">预览</span>
+        <n-icon :size="16" class="text-gray-600 dark:text-gray-300"><EyeOutline /></n-icon>
+        <span class="text-xs text-gray-600 dark:text-gray-300 max-w-0 overflow-hidden group-hover:max-w-[80px] transition-[max-width] duration-150 whitespace-nowrap">预览</span>
       </button>
       <!-- Download button | 下载按钮 -->
       <button 
         @click="handleDownload"
-        class="action-btn group p-2 bg-white rounded-lg transition-all border border-gray-200 flex items-center gap-0 hover:gap-1.5 w-max"
+        class="action-btn group p-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600 flex items-center gap-0 hover:gap-1.5 w-max transition-[gap] duration-150"
       >
-        <n-icon :size="16" class="text-gray-600"><DownloadOutline /></n-icon>
-        <span class="text-xs text-gray-600 max-w-0 overflow-hidden group-hover:max-w-[80px] transition-all duration-200 whitespace-nowrap">下载</span>
+        <n-icon :size="16" class="text-gray-600 dark:text-gray-300"><DownloadOutline /></n-icon>
+        <span class="text-xs text-gray-600 dark:text-gray-300 max-w-0 overflow-hidden group-hover:max-w-[80px] transition-[max-width] duration-150 whitespace-nowrap">下载</span>
       </button>
     </div>
   </div>
@@ -150,9 +147,6 @@ const props = defineProps({
   id: String,
   data: Object
 })
-
-// Hover state | 悬浮状态
-const showActions = ref(false)
 
 // Handle file upload | 处理文件上传
 const handleFileUpload = (event) => {
@@ -218,5 +212,17 @@ const handleDuplicate = () => {
 
 .video-node {
   cursor: default;
+}
+
+/* Hover actions - hidden by default, shown on wrapper hover | 悬浮操作 - 默认隐藏，wrapper 悬浮时显示 */
+.node-actions {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease-out;
+}
+
+.video-node-wrapper:hover .node-actions {
+  opacity: 1;
+  pointer-events: auto;
 }
 </style>

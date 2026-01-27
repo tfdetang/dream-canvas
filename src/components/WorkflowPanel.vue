@@ -137,7 +137,9 @@ const vClickOutside = {
   width: 520px;
   max-height: 70vh;
   background: var(--bg-secondary);
-  backdrop-filter: blur(12px);
+  /* Use lighter blur for better performance, especially on Safari | 使用更轻量的模糊效果以提升性能 */
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
   border-radius: 16px;
   border: 1px solid var(--border-color);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
@@ -145,6 +147,9 @@ const vClickOutside = {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  /* GPU acceleration | GPU 加速 */
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
 }
 
 :global(.dark) .workflow-panel {

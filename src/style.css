@@ -62,12 +62,43 @@ body {
 
 .vue-flow__node {
   border-radius: 8px;
+  /* GPU acceleration for smooth dragging | GPU 加速优化拖动流畅度 */
+  will-change: transform;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
   /* box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); */
+}
+
+/* Optimize pane dragging | 优化画布拖动 */
+.vue-flow__pane {
+  will-change: transform;
+}
+
+/* Reduce repaint during transform | 减少变换时重绘 */
+.vue-flow__transformationpane {
+  will-change: transform;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+}
+
+/* Optimize edge rendering during drag | 拖动时优化边渲染 */
+.vue-flow__edges {
+  pointer-events: none;
 }
 
 .vue-flow__edge-path {
   stroke: var(--border-color);
   stroke-width: 2;
+  /* Prevent sub-pixel rendering issues on Safari | 防止 Safari 子像素渲染问题 */
+  shape-rendering: geometricPrecision;
+}
+
+/* Optimize minimap for performance | 优化小地图性能 */
+.vue-flow__minimap {
+  will-change: auto;
+  contain: strict;
 }
 
 .vue-flow__handle {
