@@ -50,7 +50,7 @@ export const useApiState = () => {
 /**
  * Chat composable | 问答组合式函数
  * @param {Object} options - { systemPrompt, model, providerConfig }
- * @param {Object} options.providerConfig - { apiKey, baseUrl, apiFormat }
+ * @param {Object} options.providerConfig - { apiKey, baseUrl, models }
  */
 export const useChat = (options = {}) => {
   const { loading, error, status, reset, setLoading, setError, setSuccess } = useApiState()
@@ -64,6 +64,51 @@ export const useChat = (options = {}) => {
     currentResponse.value = ''
 
     try {
+      const model = options.model || 'gpt-4o-mini'
+      const providerConfig = options.providerConfig || {}
+
+      // 构建完整的提示词
+      const fullPrompt = options.systemPrompt
+        ? `${options.systemPrompt}\n\n${content}`
+        : content
+
+      // 如果有 providerConfig（有 models 信息），尝试使用适配器
+      if (providerConfig.models && providerConfig.apiKey && providerConfig.baseUrl) {
+        try {
+          const { createAdapterForModel } = await import('@/api/providers/index')
+          const { activeProviderId } = await import('@/stores/providers')
+
+          // 获取 provider ID（从 options 或使用当前激活的）
+          const providerId = options.providerId || activeProviderId.value || 'openai'
+
+          // 创建适配器
+          const adapter = createAdapterForModel(providerId, model, {
+            apiKey: providerConfig.apiKey,
+            baseUrl: providerConfig.baseUrl,
+            models: providerConfig.models
+          })
+
+          // 检查适配器是否支持 generateText 方法（Gemini 等格式）
+          if (typeof adapter.generateText === 'function') {
+            const result = await adapter.generateText({
+              prompt: fullPrompt,
+              model,
+              customParams: options.customParams || {}
+            })
+
+            messages.value.push({ role: 'user', content })
+            messages.value.push({ role: 'assistant', content: result })
+            currentResponse.value = result
+            setSuccess()
+            return result
+          }
+        } catch (adapterError) {
+          console.warn('[useChat] Adapter error, falling back to OpenAI format:', adapterError)
+          // 继续使用 OpenAI 格式
+        }
+      }
+
+      // 回退到 OpenAI 格式
       const msgList = [
         ...(options.systemPrompt ? [{ role: 'system', content: options.systemPrompt }] : []),
         ...messages.value,
@@ -75,13 +120,11 @@ export const useChat = (options = {}) => {
         abortController = new AbortController()
         let fullResponse = ''
 
-        // 使用提供商配置或默认配置
-        const providerConfig = options.providerConfig || {}
         const signal = abortController.signal
 
         for await (const chunk of streamChatCompletions(
           {
-            model: options.model || 'gpt-4o-mini',
+            model,
             messages: msgList,
             providerConfig
           },

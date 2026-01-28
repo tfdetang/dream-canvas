@@ -208,8 +208,10 @@ const handlePolish = async () => {
       model: selectedModel.value,
       providerConfig: {
         apiKey: modelConfig.apiKey,
-        baseUrl: modelConfig.baseUrl
-      }
+        baseUrl: modelConfig.baseUrl,
+        models: modelConfig.models  // 添加 models 数组，用于 adapter 检测
+      },
+      providerId: modelConfig.providerId  // 添加 providerId，用于选择正确的 adapter
     })
 
     // 在用户消息前加上语言要求，确保输出语言正确

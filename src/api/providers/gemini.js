@@ -8,45 +8,61 @@ export class GeminiAdapter extends BaseProviderAdapter {
     // Gemini 使用不同的 endpoint 格式
     const endpoint = `/models/${model}:generateContent`
 
-    // 构建内容数组
+    // 构建内容数组（注意：图片必须在文本之前）
     const parts = []
 
-    // 添加文本提示词
-    parts.push({
-      text: prompt
-    })
-
-    // 添加参考图片（Gemini 使用 base64 inlineData）
+    // 1. 先添加参考图片（Gemini 使用 base64 inlineData）
     if (referenceImages.length > 0) {
       for (const refImage of referenceImages) {
         if (refImage.base64) {
           // 提取 base64 数据（移除 data:image/xxx;base64, 前缀）
           const base64Data = refImage.base64.split(',')[1] || refImage.base64
+          // 提取正确的 MIME 类型
+          const mimeType = this.getMimeTypeFromBase64(refImage.base64)
           parts.push({
             inlineData: {
-              mimeType: 'image/png',
-              data: base64Data
+              data: base64Data,
+              mimeType: mimeType
             }
           })
+        } else if (refImage.url) {
+          // 如果是 URL，需要先转换为 base64
+          console.warn('[Gemini] URL reference images need to be converted to base64 first')
         }
       }
     }
+
+    // 2. 再添加文本提示词
+    parts.push({
+      text: prompt
+    })
+
+    // 构建 imageConfig（额外参数放在这里）
+    const imageConfig = {}
+
+    // 将 size 转换为 aspectRatio
+    if (size) {
+      imageConfig.aspectRatio = this.sizeToAspectRatio(size)
+    }
+
+    // 合并自定义参数到 imageConfig
+    Object.assign(imageConfig, customParams)
 
     const data = {
       contents: [
         {
-          parts
+          parts,
+          role: 'user'  // 添加 role 字段
         }
       ],
       generationConfig: {
-        // 将 size 转换为 aspectRatio
-        aspectRatio: this.sizeToAspectRatio(size || '1024x1024'),
-        ...customParams  // 🎯 合并自定义参数
+        imageConfig,  // 额外参数放在 imageConfig 里
+        responseModalities: ['IMAGE']  // 指定返回图片
       }
     }
 
-    console.log('[Gemini] Request data:', data)
-    console.log('[Gemini] Custom params:', customParams)
+    console.log('[Gemini] Request data:', JSON.stringify(data, null, 2))
+    console.log('[Gemini] Custom params merged into imageConfig:', customParams)
 
     const response = await this.sendRequest(endpoint, data)
 
@@ -71,6 +87,68 @@ export class GeminiAdapter extends BaseProviderAdapter {
     }
 
     throw new Error('Gemini 未生成任何图片，请重试')
+  }
+
+  /**
+   * 文本生成（Gemini 格式）
+   */
+  async generateText({ prompt, model, customParams = {} }) {
+    // 验证参数
+    this.validateParams({ prompt, model })
+
+    // Gemini 使用不同的 endpoint 格式
+    const endpoint = `/models/${model}:generateContent`
+
+    // 构建内容数组
+    const parts = [
+      {
+        text: prompt
+      }
+    ]
+
+    // 构建请求数据
+    const data = {
+      contents: [
+        {
+          parts,
+          role: 'user'
+        }
+      ]
+    }
+
+    // 添加自定义参数到 generationConfig
+    if (Object.keys(customParams).length > 0) {
+      data.generationConfig = customParams
+    }
+
+    console.log('[Gemini] Text generation request:', JSON.stringify(data, null, 2))
+
+    const response = await this.sendRequest(endpoint, data)
+
+    // 验证响应
+    this.validateResponse(response, 'candidates')
+
+    // 解析 Gemini 响应格式
+    const candidates = response.candidates || []
+    if (candidates.length > 0) {
+      const content = candidates[0].content
+      const parts = content.parts || []
+      for (const part of parts) {
+        if (part.text) {
+          return part.text
+        }
+      }
+    }
+
+    throw new Error('Gemini 未生成任何文本，请重试')
+  }
+
+  /**
+   * 从 base64 字符串中提取 MIME 类型
+   */
+  getMimeTypeFromBase64(base64) {
+    const match = base64.match(/^data:([^;]+);/)
+    return match ? match[1] : 'image/png'
   }
 
   /**

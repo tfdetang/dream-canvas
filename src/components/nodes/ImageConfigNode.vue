@@ -179,7 +179,7 @@ import { useImageGeneration, useApiConfig, useNodeResize } from '../../hooks'
 import { updateNode, addNode, addEdge, nodes, edges, duplicateNode, removeNode } from '../../stores/canvas'
 import { getModelQualityOptions, getModelConfig, DEFAULT_IMAGE_MODEL } from '../../stores/models'
 import { providers, activeProviderId } from '@/stores/providers'
-import { createProviderAdapter } from '@/api/providers'
+import { createAdapterForModel } from '@/api/providers'
 import { MODEL_TYPES } from '@/config/imageProviders'
 import { getDefaultModel, setLastUsedModel } from '@/stores/lastUsedModels'
 
@@ -573,8 +573,8 @@ const handleGenerate = async (mode = 'auto') => {
       throw new Error('供应商 API Key 缺失')
     }
 
-    // 创建适配器
-    const adapter = createProviderAdapter(targetProvider.id, {
+    // 创建适配器（根据模型的 apiFormat 选择）
+    const adapter = createAdapterForModel(targetProvider.id, localModel.value, {
       apiKey: targetProvider.apiKey,
       baseUrl: targetProvider.baseUrl,
       models: targetProvider.models

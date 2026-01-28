@@ -15,6 +15,9 @@ export {
   useApi
 } from './useApi'
 
+// Text Generation Hook | 文本生成 Hook
+export { useTextGeneration } from './useTextGeneration'
+
 // Workflow Orchestrator Hook | 工作流编排 Hook
 export { useWorkflowOrchestrator } from './useWorkflowOrchestrator'
 

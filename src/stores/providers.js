@@ -290,7 +290,7 @@ export const getAllTextModels = () => {
 /**
  * 根据模型 ID 获取模型配置（包括提供商信息）
  * @param {string} modelId - 模型 ID
- * @returns {Object|null} { providerId, model, apiKey, baseUrl }
+ * @returns {Object|null} { providerId, model, apiKey, baseUrl, models }
  */
 export const getModelConfigById = (modelId) => {
   for (const provider of providers.value) {
@@ -300,7 +300,8 @@ export const getModelConfigById = (modelId) => {
         providerId: provider.id,
         model,
         apiKey: provider.apiKey,
-        baseUrl: provider.baseUrl
+        baseUrl: provider.baseUrl,
+        models: provider.models  // 添加 models 数组，用于 adapter 检测
       }
     }
   }

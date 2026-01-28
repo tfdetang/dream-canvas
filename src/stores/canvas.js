@@ -134,7 +134,9 @@ const getDefaultNodeData = (type) => {
     case 'image':
       return {
         url: '',
-        label: '图片节点'
+        label: '图片节点',
+        width: 300,  // 默认宽度，不超过最大限制
+        height: 300  // 默认高度，不超过最大限制
       }
     default:
       return {}
