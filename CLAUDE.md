@@ -100,6 +100,7 @@ await db.put(plainProject)
 **Key Files**:
 - `/src/config/imageProviders.js`: Preset provider configurations and model type definitions
 - `/src/stores/providers.js`: Provider state management with localStorage persistence, debouncing, and performance optimizations
+- `/src/stores/lastUsedModels.js`: Smart model selection - remembers last used model per node type
 - `/src/api/providers/`: Adapter implementations for different providers
   - `base.js`: Base adapter class
   - `openai.js`: OpenAI DALL-E adapter (supports multi-image edits via native fetch)
@@ -110,11 +111,29 @@ await db.put(plainProject)
 **Features**:
 - **Multiple Providers**: Support for OpenAI, Gemini, Banana-pro, Doubao, and custom providers
 - **Model Types**: Three model categories (text, image, video) for filtering
+- **Smart Model Selection**: When creating nodes, automatically uses last selected model (per node type) or first available from configured providers
 - **Custom Models**: Users can add their own models with configurable API format (openai/gemini/doubao)
 - **Automatic Provider Detection**: System auto-detects which provider to use based on selected model
 - **Reference Images**: OpenAI uses `/images/edits` endpoint with FormData, Doubao uses `image_url`, Gemini uses base64 inlineData
 - **Multi-Image Support**: OpenAI adapter supports multiple reference images via FormData
 - **Backward Compatibility**: Auto-migrates old API key configuration to new provider system
+
+**Smart Model Selection Pattern**:
+```javascript
+// In node component onMounted
+const defaultModel = getDefaultModel('imageConfig', modelOptions.value, MODEL_TYPES.IMAGE)
+if (defaultModel) {
+  localModel.value = defaultModel
+  updateNode(props.id, { model: defaultModel })
+}
+
+// When user selects model
+const handleModelSelect = (key) => {
+  setLastUsedModel('imageConfig', key)  // Remember for next time
+  localModel.value = key
+  updateNode(props.id, { model: key })
+}
+```
 
 **Model Types**:
 ```javascript
@@ -165,19 +184,54 @@ createAdapterForModel(providerId, modelId, config)
 
 ### Node System
 
-The canvas uses a node-based architecture with 5 core node types defined in `/src/components/nodes/`:
+The canvas uses a node-based architecture with 6 core node types defined in `/src/components/nodes/`:
 
-1. **TextNode**: Input/edit prompt text
-2. **ImageConfigNode**: Configure image generation parameters (model, size, quantity)
-3. **ImageNode**: Display generated images or upload local images
+1. **TextNode**: Input/edit prompt text with model selection and AI polish
+   - Supports multiple text models (configurable via providers)
+   - AI polish feature with reference image support
+   - Streaming response support
+
+2. **ImageConfigNode**: Configure image generation parameters (model, size, quantity, custom params)
+3. **ImageNode**: Display generated images or upload local images with inpainting/overlay support
+   - Supports image-to-image generation workflow
+   - Image upload from local files
+   - IndexedDB storage for large images
+
 4. **VideoConfigNode**: Configure video generation parameters (supports first/last frame images)
 5. **VideoNode**: Display generated videos
+6. **ImageBlendNode**: Blend images using alpha channel masking
+   - Base image + alpha image → blended result
+   - Used for overlay/masking effects
 
 Each node has:
 - Input/output handles for connections
 - Auto-execution capability (`autoExecute` flag)
 - Result tracking (`executed`, `outputNodeId`)
 - Error handling
+- Dynamic resize support (except VideoNode)
+
+### Text Generation Hook
+
+**Key File**: `/src/hooks/useTextGeneration.js`
+
+Supports multiple text generation models with streaming:
+- **Model Agnostic**: Works with OpenAI, Gemini, and custom formats
+- **Adapter Pattern**: Uses `createAdapterForModel()` to automatically select correct API format
+- **Streaming**: Supports streaming responses for real-time feedback
+- **Reference Images**: Text polish can accept connected images as context
+
+**Usage Pattern**:
+```javascript
+const { loading, error, generate } = useTextGeneration({
+  model: 'gpt-4o-mini',
+  systemPrompt: 'You are a helpful assistant...'
+})
+
+const result = await generate(userInput, {
+  stream: true,
+  customParams: { temperature: 0.7 }
+})
+```
 
 ### Workflow Orchestration
 
@@ -271,6 +325,131 @@ Located in `/src/stores/canvas.js`:
 
 ## Important Patterns
 
+### Performance Optimization - Computed Caching
+
+**Critical**: When multiple computed properties need to access the same expensive data (like filtering edges/nodes), cache the result in a single computed:
+
+```javascript
+// ❌ BAD - Repeated traversal
+const connectedPrompts = computed(() => getConnectedInputs().prompts)
+const connectedRefImages = computed(() => getConnectedInputs().refImages)
+
+// ✅ GOOD - Single traversal, cached
+const connectedInputs = computed(() => getConnectedInputs())
+const connectedPrompts = computed(() => connectedInputs.value.prompts)
+const connectedRefImages = computed(() => connectedInputs.value.refImages)
+```
+
+**Benefits**:
+- Reduces filter/find operations by 50-67%
+- Prevents lag during canvas pan/zoom
+- Leverages Vue's computed cache effectively
+
+### Avoiding Race Conditions in Node Initialization
+
+**Critical Pattern**: When nodes have both `onMounted` and `watch with immediate: true`, they can create race conditions causing nodes to disappear or state corruption.
+
+```javascript
+// ❌ BAD - Race condition
+onMounted(() => {
+  updateNode(props.id, { model: defaultModel })
+})
+watch(() => props.data?.autoExecute, (val) => {
+  if (val) {
+    updateNode(props.id, { autoExecute: false })  // Conflicts with onMounted!
+  }
+}, { immediate: true })
+
+// ✅ GOOD - Sequential execution
+onMounted(async () => {
+  // 1. Initialize model
+  updateNode(props.id, { model: defaultModel })
+
+  // 2. Wait for DOM updates
+  await nextTick()
+
+  // 3. Initialize dependent state
+  initializeCustomParams()
+
+  // 4. Wait again, then check autoExecute
+  await nextTick()
+
+  // 5. Manually trigger autoExecute if needed
+  if (props.data?.autoExecute) {
+    updateNode(props.id, { autoExecute: false })
+    setTimeout(() => handleGenerate(), 100)
+  }
+})
+
+// Watch without immediate - only responds to runtime changes
+watch(() => props.data?.autoExecute, (val) => {
+  if (val) {
+    updateNode(props.id, { autoExecute: false })
+    setTimeout(() => handleGenerate(), 100)
+  }
+})
+```
+
+### No Side Effects in Computed Properties
+
+**Critical**: Computed properties must be pure - no modifying reactive state:
+
+```javascript
+// ❌ BAD - Side effect in computed
+const customParamsList = computed(() => {
+  modelConfig.customParams.forEach(param => {
+    if (!customParamsValues.value[param.key]) {
+      customParamsValues.value[param.key] = defaultValue  // ❌ Mutation!
+    }
+  })
+  return modelConfig.customParams.map(...)
+})
+
+// ✅ GOOD - Pure computed + separate initialization
+const customParamsList = computed(() => {
+  return modelConfig.customParams.map(param => ({
+    key: param.key,
+    options: param.options
+  }))
+})
+
+// Initialize in watch or onMounted
+watch(() => localModel.value, () => {
+  initializeCustomParams()  // ✅ Separate function
+})
+```
+
+### Node Resize with useNodeResize Hook
+
+Nodes support dynamic resizing via the `useNodeResize` composable:
+
+```javascript
+import { useNodeResize } from '@/hooks'
+
+const { nodeStyle, startResize } = useNodeResize(props.id, props.data, {
+  minWidth: 180,
+  minHeight: 200,
+  maxWidth: 500,
+  maxHeight: 600
+})
+```
+
+**Template usage**:
+```html
+<div class="resizable-node" :style="nodeStyle">
+  <!-- Content -->
+  <div class="resize-handle" @mousedown="startResize">
+    <!-- Handle icon -->
+  </div>
+</div>
+```
+
+**Key behaviors**:
+- Uses temporary dimensions during resize (tempWidth/tempHeight)
+- Persists to store on mouseup via `updateNode`
+- Accounts for canvas zoom level
+- Uses RAF throttling for smooth updates
+
 ### Node ID Generation
 - Format: `node_${counter++}` for standard nodes
 - Format: `workflow_node_${timestamp}_${counter++}` for workflow-generated nodes
@@ -328,21 +507,46 @@ Config nodes can accept multiple inputs:
 - History limited to 50 operations
 - Project data stored in localStorage (browser limit ~5-10MB)
 
+## Development Configuration
+
+### Vite Configuration
+
+**Path Aliases** (`vite.config.js`):
+```javascript
+alias: {
+  '@': path.resolve(__dirname, 'src')
+}
+```
+Use `@/` prefix for imports:
+```javascript
+import { useNodeResize } from '@/hooks'
+import { providers } from '@/stores/providers'
+```
+
+**Proxy Setup**:
+- Development server proxies `/v1` requests to `https://api.chatfire.site`
+- Change origin for CORS handling
+
+**Base Path**:
+- Production builds use `/dream-canvas` base path
+- Configure when deploying to subdirectories
+
 ## File Structure Notes
 
 ```
 src/
 ├── api/           # API client functions (image, video, chat)
 ├── components/
-│   ├── nodes/     # 5 node type components
-│   ├── edges/     # Custom edge components
+│   ├── nodes/     # 6 node type components (text, image, imageConfig, video, videoConfig, imageBlend)
+│   ├── edges/     # Custom edge components (PromptOrderEdge, ImageOrderEdge, ImageRoleEdge)
 │   ├── ApiSettings.vue      # API config modal
+│   ├── DownloadModal.vue    # Batch download modal
 │   └── WorkflowPanel.vue    # Workflow template selector
-├── hooks/         # Composables (useWorkflowOrchestrator, useApi, etc.)
-├── stores/        # State management (canvas, projects, api, theme)
-├── config/        # Configuration (models, workflows)
-├── utils/         # Utilities (request, constants, schema validation)
-└── views/         # Page components
+├── hooks/         # Composables (useWorkflowOrchestrator, useApi, useNodeResize, etc.)
+├── stores/        # State management (canvas, projects, providers, theme, lastUsedModels)
+├── config/        # Configuration (imageProviders, workflows, customWorkflows)
+├── utils/         # Utilities (request, indexedDB, imageStorage, migration, schema validation)
+└── views/         # Page components (Home, Canvas)
 ```
 
 ## Notes
