@@ -171,7 +171,7 @@
  * Image config node component | 文生图配置节点组件
  * Configuration panel for text-to-image generation with API integration
  */
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { Handle, Position, useVueFlow } from '@vue-flow/core'
 import { NIcon, NDropdown, NSpin, NTag } from 'naive-ui'
 import { ChevronDownOutline, ChevronForwardOutline, CopyOutline, TrashOutline, RefreshOutline, AddOutline } from '@vicons/ionicons5'
@@ -286,24 +286,11 @@ const customParamsList = computed(() => {
     }
   }
 
-  console.log('[ImageConfigNode] Current model:', localModel.value)
-  console.log('[ImageConfigNode] Model config:', modelConfig)
-  console.log('[ImageConfigNode] Custom params:', modelConfig?.customParams)
-
   if (!modelConfig?.customParams || modelConfig.customParams.length === 0) {
     return []
   }
 
-  // 🎯 初始化默认值：如果 customParamsValues 中没有这个参数的值，就设置默认值
-  modelConfig.customParams.forEach(param => {
-    if (!customParamsValues.value[param.key]) {
-      const defaultValue = param.defaultValue || param.options[0]
-      customParamsValues.value[param.key] = defaultValue
-      console.log(`[ImageConfigNode] Auto-initialized param: ${param.key} = ${defaultValue}`)
-    }
-  })
-
-  // 转换为下拉选项格式
+  // 转换为下拉选项格式（无副作用）
   return modelConfig.customParams.map(param => ({
     key: param.key,
     label: param.label,
@@ -314,6 +301,50 @@ const customParamsList = computed(() => {
     defaultValue: param.defaultValue || param.options[0]
   }))
 })
+
+// 初始化自定义参数的默认值（在 watch 中执行，避免 computed 副作用）
+const initializeCustomParams = () => {
+  // 根据选中的模型查找其配置
+  let modelConfig = null
+
+  for (const provider of providers.value) {
+    if (!provider.enabled || !provider.models) continue
+
+    const model = provider.models.find(m => m.id === localModel.value)
+    if (model) {
+      modelConfig = model
+      break
+    }
+  }
+
+  if (!modelConfig?.customParams || modelConfig.customParams.length === 0) {
+    return
+  }
+
+  // 初始化默认值
+  let needsUpdate = false
+  const newValues = { ...customParamsValues.value }
+
+  modelConfig.customParams.forEach(param => {
+    if (!newValues[param.key]) {
+      const defaultValue = param.defaultValue || param.options[0]
+      newValues[param.key] = defaultValue
+      needsUpdate = true
+      console.log(`[ImageConfigNode] Auto-initialized param: ${param.key} = ${defaultValue}`)
+    }
+  })
+
+  if (needsUpdate) {
+    customParamsValues.value = newValues
+    // 持久化到节点数据
+    updateNode(props.id, { customParams: newValues })
+  }
+}
+
+// 监听模型变化，自动初始化自定义参数
+watch(() => localModel.value, () => {
+  initializeCustomParams()
+}, { immediate: false })  // 不立即执行，等待 onMounted 完成后再执行
 
 // 获取自定义参数显示值
 const getCustomParamDisplay = (paramKey, options) => {
@@ -334,7 +365,7 @@ const handleCustomParamSelect = (paramKey, value) => {
 }
 
 // Initialize on mount | 挂载时初始化
-onMounted(() => {
+onMounted(async () => {
   // Set default model if not set | 如果未设置则设置默认模型
   if (!localModel.value) {
     // 使用智能默认值：优先上次使用的模型，否则第一个已配置的模型
@@ -350,9 +381,30 @@ onMounted(() => {
       console.log('[ImageConfigNode] No available models, using fallback:', DEFAULT_IMAGE_MODEL)
     }
   }
+
+  // 在设置模型后初始化自定义参数
+  // 使用 nextTick 确保 DOM 更新完成
+  await nextTick()
+  initializeCustomParams()
+
+  // 等待所有初始化完成后再检查 autoExecute
+  // 避免与 onMounted 中的 updateNode 产生竞态条件
+  await nextTick()
+
+  // 手动检查 autoExecute（替代 watch immediate）
+  if (props.data?.autoExecute && !loading.value) {
+    console.log('[ImageConfigNode] Triggering auto-execution after initialization')
+    // Clear the flag first to prevent re-triggering
+    updateNode(props.id, { autoExecute: false })
+    // Delay to ensure node connections are established
+    setTimeout(() => {
+      handleGenerate()
+    }, 100)
+  }
 })
 
 // Get connected nodes | 获取连接的节点
+// 注意：此函数不再直接使用，而是通过 connectedInputs computed 来缓存结果
 const getConnectedInputs = () => {
   const connectedEdges = edges.value.filter(e => e.target === props.id)
   const prompts = [] // Array of { order, content } | 提示词数组
@@ -391,14 +443,19 @@ const getConnectedInputs = () => {
   return { prompt: combinedPrompt, prompts, refImages: sortedRefImages, refImagesWithOrder: refImages }
 }
 
+// 缓存连接的输入数据，避免重复计算 | Cache connected inputs to avoid repeated computation
+const connectedInputs = computed(() => {
+  return getConnectedInputs()
+})
+
 // Computed connected prompts (sorted by order) | 计算连接的提示词（按顺序排列）
 const connectedPrompts = computed(() => {
-  return getConnectedInputs().prompts
+  return connectedInputs.value.prompts
 })
 
 // Computed connected reference images | 计算连接的参考图
 const connectedRefImages = computed(() => {
-  return getConnectedInputs().refImages
+  return connectedInputs.value.refImages
 })
 
 // Handle model selection | 处理模型选择
@@ -656,6 +713,8 @@ const handleDelete = () => {
 }
 
 // Watch for auto-execute flag | 监听自动执行标志
+// 注意：移除了 immediate: true，避免与 onMounted 产生竞态条件
+// autoExecute 的初始检查现在在 onMounted 中完成
 watch(
   () => props.data?.autoExecute,
   (shouldExecute) => {
@@ -667,8 +726,8 @@ watch(
         handleGenerate()
       }, 100)
     }
-  },
-  { immediate: true }
+  }
+  // 移除 immediate: true，改为在 onMounted 中手动检查
 )
 </script>
 

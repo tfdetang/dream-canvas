@@ -352,13 +352,14 @@ const debouncedSave = () => {
 }
 
 /**
- * Update viewport and save | 更新视口并保存
- * Note: Uses debounce to avoid frequent saves during pan/zoom | 使用防抖避免拖动/缩放时频繁保存
+ * Update viewport | 更新视口
+ * Note: No longer saves during pan/zoom to improve performance | 拖动/缩放时不再保存，提升性能
+ * Viewport is saved on project unload/switch instead | 视口改在项目卸载/切换时保存
  */
 export const updateViewport = (viewport) => {
   canvasViewport.value = viewport
-  // Only trigger save if viewport change is significant enough | 只在视口变化足够大时触发保存
-  debouncedSave()
+  // 不再触发保存，避免拖动/缩放时的性能问题
+  // 视口信息会在项目切换或页面卸载时保存
 }
 
 /**

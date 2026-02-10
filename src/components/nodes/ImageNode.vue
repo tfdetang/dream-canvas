@@ -593,9 +593,9 @@ const handleImageGen = () => {
     label: '提示词'
   })
 
-  // Create imageConfig node | 创建文生图配置节点
+  // Create imageConfig node | 创建文生图配置节点（使用智能模型选择）
   const configNodeId = addNode('imageConfig', { x: nodeX + 600, y: nodeY }, {
-    model: 'doubao-seedream-4-5-251128',
+    model: null,  // 不指定模型，让组件自动选择上次使用的模型
     size: '2048x2048',
     label: '图生图'
   })

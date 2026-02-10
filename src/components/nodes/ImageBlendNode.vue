@@ -200,6 +200,7 @@ const blendSuccess = ref(false)
 
 /**
  * Get connected image data by handle ID | 根据handle ID获取连接的图片数据
+ * 注意：此函数不再直接使用，而是通过 connectedEdgesMap computed 来缓存结果
  */
 const getConnectedImageData = (handleId) => {
   // Find edges connected to this node's target handle | 查找连接到当前节点目标handle的边
@@ -222,6 +223,25 @@ const getConnectedImageData = (handleId) => {
   return sourceNode.data.imageUrl || sourceNode.data.url || null
 }
 
+// 缓存所有连接的边，避免重复遍历 | Cache all connected edges to avoid repeated traversal
+const connectedEdgesMap = computed(() => {
+  const allConnectedEdges = edges.value.filter(e => e.target === props.id)
+  const map = new Map()
+
+  for (const edge of allConnectedEdges) {
+    const handleId = edge.targetHandle
+    if (!map.has(handleId)) {
+      // Get the source node data for this edge
+      const sourceNode = nodes.value.find(n => n.id === edge.source)
+      if (sourceNode?.type === 'image') {
+        map.set(handleId, sourceNode.data.imageUrl || sourceNode.data.url || null)
+      }
+    }
+  }
+
+  return map
+})
+
 /**
  * Load image from node connection | 从节点连接加载图片
  */
@@ -243,8 +263,9 @@ const loadImageFromConnection = async (imageData) => {
 }
 
 // Get connected image data | 获取连接的图片数据
-const baseImageData = computed(() => getConnectedImageData('base'))
-const alphaImageData = computed(() => getConnectedImageData('alpha'))
+// 使用缓存的 edges map 来获取数据，避免重复遍历
+const baseImageData = computed(() => connectedEdgesMap.value.get('base'))
+const alphaImageData = computed(() => connectedEdgesMap.value.get('alpha'))
 
 const baseImageConnected = computed(() => !!baseImageData.value)
 const alphaImageConnected = computed(() => !!alphaImageData.value)

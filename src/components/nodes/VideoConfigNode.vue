@@ -304,6 +304,7 @@ const handleDurationSelect = (key) => {
 }
 
 // Get connected inputs by role | 根据角色获取连接的输入
+// 注意：此函数不再直接使用，而是通过 cachedConnectedInputs computed 来缓存结果
 const getConnectedInputs = () => {
   const connectedEdges = edges.value.filter(e => e.target === props.id)
 
@@ -335,9 +336,14 @@ const getConnectedInputs = () => {
   return { prompt, first_frame_image, last_frame_image, images }
 }
 
+// 缓存连接的输入数据，避免重复计算 | Cache connected inputs to avoid repeated computation
+const cachedConnectedInputs = computed(() => {
+  return getConnectedInputs()
+})
+
 // Computed connected prompt | 计算连接的提示词
 const connectedPrompt = computed(() => {
-  return getConnectedInputs().prompt
+  return cachedConnectedInputs.value.prompt
 })
 
 // Created video node ID | 创建的视频节点 ID
@@ -345,7 +351,7 @@ const createdVideoNodeId = ref(null)
 
 // Handle generate action | 处理生成操作
 const handleGenerate = async () => {
-  const { prompt, first_frame_image, last_frame_image, images } = getConnectedInputs()
+  const { prompt, first_frame_image, last_frame_image, images } = cachedConnectedInputs.value
 
   const hasInput = prompt || first_frame_image || last_frame_image || images.length > 0
   if (!hasInput) {
