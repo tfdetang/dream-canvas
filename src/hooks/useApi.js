@@ -59,7 +59,7 @@ export const useChat = (options = {}) => {
   const currentResponse = ref('')
   let abortController = null
 
-  const send = async (content, stream = true) => {
+  const send = async (content, stream = true, images = []) => {
     setLoading(true)
     currentResponse.value = ''
 
@@ -93,7 +93,8 @@ export const useChat = (options = {}) => {
             const result = await adapter.generateText({
               prompt: fullPrompt,
               model,
-              customParams: options.customParams || {}
+              customParams: options.customParams || {},
+              images: images.length > 0 ? images : undefined  // 传递图片数组
             })
 
             messages.value.push({ role: 'user', content })
@@ -109,10 +110,31 @@ export const useChat = (options = {}) => {
       }
 
       // 回退到 OpenAI 格式
+      // 构建用户消息（支持多模态）
+      let userMessage
+      if (images.length > 0) {
+        // OpenAI vision format
+        userMessage = {
+          role: 'user',
+          content: [
+            { type: 'text', text: content },
+            ...images.map(img => ({
+              type: 'image_url',
+              image_url: {
+                url: img.startsWith('data:') ? img : `data:image/jpeg;base64,${img}`
+              }
+            }))
+          ]
+        }
+      } else {
+        // 纯文本消息
+        userMessage = { role: 'user', content }
+      }
+
       const msgList = [
         ...(options.systemPrompt ? [{ role: 'system', content: options.systemPrompt }] : []),
         ...messages.value,
-        { role: 'user', content }
+        userMessage
       ]
 
       if (stream) {

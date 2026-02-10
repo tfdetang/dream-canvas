@@ -91,20 +91,38 @@ export class GeminiAdapter extends BaseProviderAdapter {
 
   /**
    * 文本生成（Gemini 格式）
+   * 支持多模态输入（文本 + 图片）
    */
-  async generateText({ prompt, model, customParams = {} }) {
+  async generateText({ prompt, model, customParams = {}, images = [] }) {
     // 验证参数
     this.validateParams({ prompt, model })
 
     // Gemini 使用不同的 endpoint 格式
     const endpoint = `/models/${model}:generateContent`
 
-    // 构建内容数组
-    const parts = [
-      {
-        text: prompt
+    // 构建内容数组（注意：图片必须在文本之前）
+    const parts = []
+
+    // 1. 先添加图片（如果有）
+    if (images && images.length > 0) {
+      for (const img of images) {
+        // 提取 base64 数据（移除 data:image/xxx;base64, 前缀）
+        const base64Data = img.split(',')[1] || img
+        // 提取正确的 MIME 类型
+        const mimeType = this.getMimeTypeFromBase64(img)
+        parts.push({
+          inlineData: {
+            data: base64Data,
+            mimeType: mimeType
+          }
+        })
       }
-    ]
+    }
+
+    // 2. 再添加文本提示词
+    parts.push({
+      text: prompt
+    })
 
     // 构建请求数据
     const data = {
@@ -121,7 +139,7 @@ export class GeminiAdapter extends BaseProviderAdapter {
       data.generationConfig = customParams
     }
 
-    console.log('[Gemini] Text generation request:', JSON.stringify(data, null, 2))
+    console.log('[Gemini] Text generation request (multimodal):', JSON.stringify(data, null, 2))
 
     const response = await this.sendRequest(endpoint, data)
 

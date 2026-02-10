@@ -47,6 +47,14 @@
           <n-icon :size="20"><DownloadOutline /></n-icon>
         </button>
         <button
+          @click="showSaveWorkflowDialog = true"
+          class="p-2 hover:bg-[var(--bg-tertiary)] rounded-lg transition-colors"
+          :disabled="nodes.length === 0"
+          title="保存为工作流"
+        >
+          <n-icon :size="20"><BookmarkOutline /></n-icon>
+        </button>
+        <button
           @click="showApiSettings = true"
           class="p-2 hover:bg-[var(--bg-tertiary)] rounded-lg transition-colors"
           :class="{ 'text-[var(--accent-color)]': isApiConfigured }"
@@ -197,6 +205,14 @@
 
     <!-- Workflow Panel | 工作流面板 -->
     <WorkflowPanel v-model:show="showWorkflowPanel" @add-workflow="handleAddWorkflow" />
+
+    <!-- Save Workflow Dialog | 保存工作流对话框 -->
+    <SaveWorkflowDialog
+      v-model:show="showSaveWorkflowDialog"
+      :nodes="nodes"
+      :edges="edges"
+      @save="handleSaveWorkflow"
+    />
   </div>
 </template>
 
@@ -233,7 +249,8 @@ import {
   DownloadOutline,
   AppsOutline,
   SaveOutline,
-  CheckmarkOutline
+  CheckmarkOutline,
+  LayersOutline
 } from '@vicons/ionicons5'
 import { isDark, toggleTheme } from '../stores/theme'
 import { nodes, edges, addNode, addEdge, updateNode, initSampleData, loadProject, saveProject, clearCanvas, canvasViewport, updateViewport, undo, redo, canUndo, canRedo, manualSaveHistory } from '../stores/canvas'
@@ -245,6 +262,8 @@ import { projects, initProjectsStore, updateProject, renameProject, currentProje
 import ApiSettings from '../components/ApiSettings.vue'
 import DownloadModal from '../components/DownloadModal.vue'
 import WorkflowPanel from '../components/WorkflowPanel.vue'
+import SaveWorkflowDialog from '../components/SaveWorkflowDialog.vue'
+import { addCustomWorkflow } from '../stores/customWorkflows'
 
 // API Config hook | API 配置 hook
 const { isConfigured: isApiConfigured } = useApiConfig()
@@ -302,6 +321,7 @@ import ImageConfigNode from '../components/nodes/ImageConfigNode.vue'
 import VideoNode from '../components/nodes/VideoNode.vue'
 import ImageNode from '../components/nodes/ImageNode.vue'
 import VideoConfigNode from '../components/nodes/VideoConfigNode.vue'
+import ImageBlendNode from '../components/nodes/ImageBlendNode.vue'
 import ImageRoleEdge from '../components/edges/ImageRoleEdge.vue'
 import PromptOrderEdge from '../components/edges/PromptOrderEdge.vue'
 import ImageOrderEdge from '../components/edges/ImageOrderEdge.vue'
@@ -318,7 +338,8 @@ const nodeTypes = {
   imageConfig: markRaw(ImageConfigNode),
   video: markRaw(VideoNode),
   image: markRaw(ImageNode),
-  videoConfig: markRaw(VideoConfigNode)
+  videoConfig: markRaw(VideoConfigNode),
+  imageBlend: markRaw(ImageBlendNode)
 }
 
 // Register custom edge types | 注册自定义边类型
@@ -335,6 +356,7 @@ const autoExecute = ref(true)
 const isMobile = ref(false)
 const showGrid = ref(true)
 const showApiSettings = ref(false)
+const showSaveWorkflowDialog = ref(false)
 const isProcessing = ref(false)
 const justSaved = ref(false) // 保存成功提示状态
 
@@ -384,7 +406,8 @@ const nodeTypeOptions = [
   { type: 'imageConfig', name: '文生图配置', icon: ColorPaletteOutline, color: '#22c55e' },
   { type: 'videoConfig', name: '视频生成配置', icon: VideocamOutline, color: '#f59e0b' },
   { type: 'image', name: '图片节点', icon: ImageOutline, color: '#8b5cf6' },
-  { type: 'video', name: '视频节点', icon: VideocamOutline, color: '#ef4444' }
+  { type: 'video', name: '视频节点', icon: VideocamOutline, color: '#ef4444' },
+  { type: 'imageBlend', name: '图片叠加', icon: LayersOutline, color: '#ec4899' }
 ]
 
 // Input placeholder | 输入占位符
@@ -419,12 +442,81 @@ const addNewNode = async (type) => {
   showNodeMenu.value = false
 }
 
+// Handle save workflow | 处理保存工作流
+const handleSaveWorkflow = (workflowData) => {
+  try {
+    // 将节点和边转换为普通对象（去除 Vue 响应式）
+    const plainNodes = JSON.parse(JSON.stringify(nodes.value))
+    const plainEdges = JSON.parse(JSON.stringify(edges.value))
+
+    // 添加自定义工作流
+    const workflowId = addCustomWorkflow({
+      name: workflowData.name,
+      description: workflowData.description,
+      nodes: plainNodes,
+      edges: plainEdges
+    })
+
+    window.$message?.success(`工作流"${workflowData.name}"已保存`)
+    console.log('[Canvas] Workflow saved:', workflowId)
+  } catch (error) {
+    console.error('[Canvas] Failed to save workflow:', error)
+    window.$message?.error('保存工作流失败')
+  }
+}
+
 // Handle add workflow from panel | 处理从面板添加工作流
 const handleAddWorkflow = ({ workflow, options }) => {
   // Calculate viewport center position | 计算视口中心位置
   const viewportCenterX = -viewport.value.x / viewport.value.zoom + (window.innerWidth / 2) / viewport.value.zoom
   const viewportCenterY = -viewport.value.y / viewport.value.zoom + (window.innerHeight / 2) / viewport.value.zoom
-  
+
+  // 如果是自定义工作流，直接使用保存的节点和边
+  if (workflow.type === 'custom') {
+    const startPosition = { x: viewportCenterX - 300, y: viewportCenterY - 200 }
+
+    // 深拷贝节点和边，调整位置
+    const newNodes = workflow.nodes.map(node => ({
+      ...node,
+      position: {
+        x: node.position.x + startPosition.x,
+        y: node.position.y + startPosition.y
+      }
+    }))
+
+    const newEdges = [...workflow.edges]
+
+    // Add nodes to canvas | 将节点添加到画布
+    const nodeIdMap = {} // 保存旧ID到新ID的映射
+    newNodes.forEach(node => {
+      const oldId = node.id
+      const nodeId = addNode(node.type, node.position, node.data)
+      nodeIdMap[oldId] = nodeId
+    })
+
+    // Add edges to canvas with updated IDs | 使用新ID添加边
+    setTimeout(() => {
+      newEdges.forEach(edge => {
+        addEdge({
+          source: nodeIdMap[edge.source],
+          target: nodeIdMap[edge.target],
+          sourceHandle: edge.sourceHandle || 'right',
+          targetHandle: edge.targetHandle || 'left',
+          type: edge.type,
+          data: edge.data
+        })
+      })
+
+      // Update node internals | 更新节点内部
+      Object.values(nodeIdMap).forEach(nodeId => {
+        updateNodeInternals(nodeId)
+      })
+    }, 100)
+
+    window.$message?.success(`已添加工作流: ${workflow.name}`)
+    return
+  }
+
   // Create nodes from workflow template | 从工作流模板创建节点
   const startPosition = { x: viewportCenterX - 300, y: viewportCenterY - 200 }
   const { nodes: newNodes, edges: newEdges } = workflow.createNodes(startPosition, options)

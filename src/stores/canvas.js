@@ -138,6 +138,17 @@ const getDefaultNodeData = (type) => {
         width: 300,  // 默认宽度，不超过最大限制
         height: 300  // 默认高度，不超过最大限制
       }
+    case 'imageBlend':
+      return {
+        label: '图片叠加',
+        baseImage: null,      // 原始图片
+        alphaImage: null,     // 透明通道图
+        resultUrl: null,      // 生成的叠加结果
+        isProcessing: false,  // 处理状态
+        error: null,          // 错误信息
+        width: 280,
+        height: 400
+      }
     default:
       return {}
   }

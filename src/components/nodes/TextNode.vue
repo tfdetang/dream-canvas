@@ -25,9 +25,14 @@
 
       <!-- Content | 内容 -->
       <div class="p-3 flex flex-col h-[calc(100%-41px)]">
-        <textarea v-model="content" @blur="updateContent" @wheel.stop @mousedown.stop
+        <textarea
+          v-model="content"
+          @blur="updateContent"
+          @wheel.stop
+          @input="updateContent"
           class="w-full flex-1 bg-transparent resize-none outline-none text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]"
-          placeholder="请输入文本内容..." />
+          placeholder="请输入文本内容..."
+        />
 
         <!-- Model selector | 模型选择器 -->
         <div class="mt-2">
@@ -120,7 +125,7 @@ import { ref, watch, nextTick, computed } from 'vue'
 import { Handle, Position, useVueFlow } from '@vue-flow/core'
 import { NIcon, NSpin, NSelect } from 'naive-ui'
 import { TrashOutline, ExpandOutline, CopyOutline, ImageOutline, VideocamOutline } from '@vicons/ionicons5'
-import { updateNode, removeNode, duplicateNode, addNode, addEdge, nodes } from '../../stores/canvas'
+import { updateNode, removeNode, duplicateNode, addNode, addEdge, nodes, edges } from '../../stores/canvas'
 import { useChat, useNodeResize } from '../../hooks'
 import { getAllTextModels, getModelConfigById } from '../../stores/providers'
 import { getPolishPrompt } from '../../utils/promptPolish'
@@ -177,10 +182,39 @@ const handleModelChange = (modelId) => {
   updateNode(props.id, { selectedModel: modelId })
 }
 
+// Get connected input images | 获取连接的输入图片
+const getConnectedImages = () => {
+  const connectedEdges = edges.value.filter(e => e.target === props.id)
+  const images = []
+
+  for (const edge of connectedEdges) {
+    const sourceNode = nodes.value.find(n => n.id === edge.source)
+    if (!sourceNode) continue
+
+    if (sourceNode.type === 'image') {
+      // Prefer base64, fallback to url | 优先使用 base64，回退到 url
+      const imageData = sourceNode.data?.base64 || sourceNode.data?.url
+      if (imageData) {
+        images.push({
+          data: imageData,
+          order: edge.data?.imageOrder || 1
+        })
+      }
+    }
+  }
+
+  // Sort by order | 按顺序排序
+  images.sort((a, b) => a.order - b.order)
+  return images.map(img => img.data)
+}
+
 // Handle AI polish | 处理 AI 润色
 const handlePolish = async () => {
   const input = content.value.trim()
-  if (!input) return
+  if (!input) {
+    window.$message?.warning('请输入要润色的文本内容')
+    return
+  }
 
   // Check if model is selected | 检查是否选择了模型
   if (!selectedModel.value) {
@@ -195,12 +229,22 @@ const handlePolish = async () => {
     return
   }
 
+  // Get connected reference images | 获取连接的参考图
+  const referenceImages = getConnectedImages()
+
   isPolishing.value = true
   const originalContent = content.value
 
   try {
     // Get polish prompt based on input language | 根据输入语言获取润色 prompt
     const polishConfig = getPolishPrompt(input)
+
+    // 在用户消息前加上语言要求，确保输出语言正确
+    const languageHint = polishConfig.language === 'zh'
+      ? '【请用中文润色以下内容】\n'
+      : '【Please polish the following content in English】\n'
+
+    const textMessage = languageHint + input
 
     // Create chat hook with dynamic provider config | 使用动态提供商配置创建 chat hook
     const { send: sendChat } = useChat({
@@ -214,13 +258,20 @@ const handlePolish = async () => {
       providerId: modelConfig.providerId  // 添加 providerId，用于选择正确的 adapter
     })
 
-    // 在用户消息前加上语言要求，确保输出语言正确
-    const languageHint = polishConfig.language === 'zh'
-      ? '【请用中文润色以下内容】\n'
-      : '【Please polish the following content in English】\n'
+    let result
 
-    // Call chat API to polish the prompt | 调用 AI 润色提示词
-    const result = await sendChat(languageHint + input, true)
+    // 如果有参考图，使用多模态输入
+    if (referenceImages.length > 0) {
+      console.log('[TextNode] Polishing with reference images:', referenceImages.length)
+
+      // Call chat API with images | 调用 AI API 并携带图片
+      result = await sendChat(textMessage, true, referenceImages)
+
+      window.$message?.info(`正在使用 ${referenceImages.length} 张参考图进行润色...`)
+    } else {
+      // 纯文本润色
+      result = await sendChat(textMessage, true)
+    }
 
     if (result) {
       content.value = result

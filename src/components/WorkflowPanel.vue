@@ -42,11 +42,39 @@
         </div>
         
         <!-- My workflows | 我的工作流 -->
-        <div v-else class="empty-state">
-          <n-icon :size="36" class="text-gray-500">
-            <FolderOpenOutline />
-          </n-icon>
-          <p class="text-gray-500 text-sm mt-2">暂无自定义工作流</p>
+        <div v-else>
+          <!-- 有自定义工作流 -->
+          <div v-if="myWorkflows.length > 0" class="workflow-grid">
+            <div
+              v-for="workflow in myWorkflows"
+              :key="workflow.id"
+              class="workflow-card"
+            >
+              <div class="card-cover" @click="handleAddWorkflow(workflow)">
+                <img v-if="workflow.cover" :src="workflow.cover" :alt="workflow.name" class="cover-img" />
+                <n-icon v-else :size="36" class="cover-icon">
+                  <GridOutline />
+                </n-icon>
+              </div>
+              <div class="card-footer">
+                <div class="card-title" @click="handleAddWorkflow(workflow)">{{ workflow.name }}</div>
+                <button class="delete-btn" @click.stop="handleDeleteWorkflow(workflow.id)" title="删除工作流">
+                  <n-icon :size="14">
+                    <TrashOutline />
+                  </n-icon>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 空状态 -->
+          <div v-else class="empty-state">
+            <n-icon :size="36" class="text-gray-500">
+              <FolderOpenOutline />
+            </n-icon>
+            <p class="text-gray-500 text-sm mt-2">暂无自定义工作流</p>
+            <p class="text-gray-400 text-xs mt-1">在画布中点击"保存工作流"按钮创建</p>
+          </div>
         </div>
       </div>
     </div>
@@ -60,14 +88,16 @@
  */
 import { computed, ref } from 'vue'
 import { NIcon } from 'naive-ui'
-import { 
+import {
   CloseOutline,
-  GridOutline, 
-  ImageOutline, 
+  GridOutline,
+  ImageOutline,
   VideocamOutline,
-  FolderOpenOutline 
+  FolderOpenOutline,
+  TrashOutline
 } from '@vicons/ionicons5'
 import { WORKFLOW_TEMPLATES } from '../config/workflows'
+import { customWorkflows, deleteCustomWorkflow } from '../stores/customWorkflows'
 
 const props = defineProps({
   show: Boolean
@@ -86,6 +116,9 @@ const visible = computed({
 
 // Public workflows | 公共工作流
 const publicWorkflows = computed(() => WORKFLOW_TEMPLATES)
+
+// My workflows | 我的工作流
+const myWorkflows = computed(() => customWorkflows.value)
 
 // Icon mapping | 图标映射
 const iconMap = {
@@ -108,6 +141,14 @@ const handleAddWorkflow = (workflow) => {
 // Handle click outside | 点击外部关闭
 const handleClickOutside = () => {
   visible.value = false
+}
+
+// Handle delete workflow | 处理删除工作流
+const handleDeleteWorkflow = (workflowId) => {
+  if (window.confirm('确定要删除这个工作流吗？')) {
+    deleteCustomWorkflow(workflowId)
+    window.$message?.success('工作流已删除')
+  }
 }
 
 // Custom directive | 自定义指令
@@ -256,14 +297,50 @@ const vClickOutside = {
   color: var(--text-secondary);
 }
 
-.card-title {
+.card-footer {
   margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.card-title {
   font-size: 13px;
   color: var(--text-primary);
   text-align: center;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1;
+  cursor: pointer;
+}
+
+.card-title:hover {
+  color: var(--accent-color);
+}
+
+.delete-btn {
+  display: none;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.workflow-card:hover .delete-btn {
+  display: flex;
+}
+
+.delete-btn:hover {
+  background: var(--bg-tertiary);
+  color: #e74c3c;
 }
 
 /* Empty state | 空状态 */
