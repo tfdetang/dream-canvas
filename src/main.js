@@ -11,20 +11,33 @@ import { initProviders } from './stores/providers'
 import { initMigration } from './utils/migration'
 import { autoMigrateWithUI } from './utils/dataMigration'
 import { initCustomWorkflows } from './stores/customWorkflows'
+import { initIndexedDB } from './utils/indexedDB'
 
-// Initialize providers first
-initProviders()
+// Async initialization function
+const init = async () => {
+  // Initialize providers first
+  initProviders()
 
-// Initialize custom workflows from localStorage
-initCustomWorkflows()
+  // Initialize IndexedDB (creates object stores and runs migrations)
+  // This MUST happen before initCustomWorkflows
+  await initIndexedDB()
 
-// Then run migration if needed
-initMigration()
+  // Initialize custom workflows from IndexedDB (after database is ready)
+  await initCustomWorkflows()
 
-// Migrate images to IndexedDB for performance
-autoMigrateWithUI().catch(error => {
-  console.error('[Main] Failed to migrate images:', error)
-  // 迁移失败不影响应用启动，只记录错误
+  // Then run other migrations if needed
+  initMigration()
+
+  // Migrate images to IndexedDB for performance
+  autoMigrateWithUI().catch(error => {
+    console.error('[Main] Failed to migrate images:', error)
+    // 迁移失败不影响应用启动，只记录错误
+  })
+}
+
+// Run async initialization
+init().catch(error => {
+  console.error('[Main] Initialization failed:', error)
 })
 
 const app = createApp(App)

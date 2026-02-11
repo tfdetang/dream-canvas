@@ -443,25 +443,54 @@ const addNewNode = async (type) => {
 }
 
 // Handle save workflow | 处理保存工作流
-const handleSaveWorkflow = (workflowData) => {
+const handleSaveWorkflow = async (workflowData) => {
   try {
-    // 将节点和边转换为普通对象（去除 Vue 响应式）
-    const plainNodes = JSON.parse(JSON.stringify(nodes.value))
+    // 清理节点数据，移除大型字段（仅保留结构信息）
+    const cleanNodes = nodes.value.map(node => {
+      const cleanData = { ...node.data }
+
+      // 移除所有可能包含 base64 或大型数据的字段
+      delete cleanData.base64
+      delete cleanData.url
+      delete cleanData.imageUrl
+      delete cleanData.thumbnail
+      delete cleanData.firstFrameImage
+      delete cleanData.lastFrameImage
+      delete cleanData.images
+      delete cleanData.refImages
+      delete cleanData.loading
+      delete cleanData.error
+      delete cleanData.executed
+      delete cleanData.outputNodeId
+      delete cleanData.updatedAt
+      delete cleanData.isProcessing
+      delete cleanData.resultUrl
+
+      return {
+        id: node.id,
+        type: node.type,
+        position: node.position,
+        data: cleanData
+      }
+    })
+
+    // 转换为普通对象
+    const plainNodes = JSON.parse(JSON.stringify(cleanNodes))
     const plainEdges = JSON.parse(JSON.stringify(edges.value))
 
-    // 添加自定义工作流
-    const workflowId = addCustomWorkflow({
+    // 添加自定义工作流（现在使用 IndexedDB，支持大容量）
+    const workflowId = await addCustomWorkflow({
       name: workflowData.name,
       description: workflowData.description,
       nodes: plainNodes,
       edges: plainEdges
     })
 
-    window.$message?.success(`工作流"${workflowData.name}"已保存`)
-    console.log('[Canvas] Workflow saved:', workflowId)
+    window.$message?.success(`工作流"${workflowData.name}"已保存到 IndexedDB`)
+    console.log('[Canvas] Workflow saved to IndexedDB:', workflowId, 'Nodes:', plainNodes.length)
   } catch (error) {
     console.error('[Canvas] Failed to save workflow:', error)
-    window.$message?.error('保存工作流失败')
+    // IndexedDB 错误会由 customWorkflows.js 处理并显示，这里只记录
   }
 }
 

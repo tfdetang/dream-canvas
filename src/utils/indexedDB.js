@@ -9,8 +9,9 @@
  */
 
 const DB_NAME = 'ai-canvas-db'
-const DB_VERSION = 1
+const DB_VERSION = 2  // Upgraded to support custom workflows
 const STORE_NAME = 'projects'
+const WORKFLOWS_STORE_NAME = 'customWorkflows'
 
 /**
  * Open IndexedDB connection
@@ -18,21 +19,31 @@ const STORE_NAME = 'projects'
  */
 export const openDB = () => {
   return new Promise((resolve, reject) => {
+    console.log(`[IndexedDB] Opening database "${DB_NAME}" at version ${DB_VERSION}`)
     const request = indexedDB.open(DB_NAME, DB_VERSION)
 
     request.onerror = () => {
-      console.error('IndexedDB open error:', request.error)
+      console.error('[IndexedDB] Open error:', request.error)
       reject(request.error)
     }
 
     request.onsuccess = () => {
-      resolve(request.result)
+      const db = request.result
+      console.log(`[IndexedDB] Database opened successfully at version ${db.version}`)
+      console.log('[IndexedDB] Available object stores:', Array.from(db.objectStoreNames))
+      resolve(db)
+    }
+
+    request.onblocked = () => {
+      console.warn('[IndexedDB] Database upgrade blocked - please close all other tabs with this app')
+      window.$message?.warning('数据库升级被阻止，请关闭其他标签页后刷新')
     }
 
     request.onupgradeneeded = (event) => {
+      console.log(`[IndexedDB] Upgrade needed from version ${event.oldVersion} to ${event.newVersion}`)
       const db = event.target.result
 
-      // Create object store if it doesn't exist
+      // Create projects object store if it doesn't exist
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         const objectStore = db.createObjectStore(STORE_NAME, { keyPath: 'id' })
 
@@ -41,7 +52,23 @@ export const openDB = () => {
         objectStore.createIndex('createdAt', 'createdAt', { unique: false })
         objectStore.createIndex('name', 'name', { unique: false })
 
-        console.log('IndexedDB object store created')
+        console.log('[IndexedDB] ✅ Projects object store created')
+      } else {
+        console.log('[IndexedDB] Projects object store already exists')
+      }
+
+      // Create custom workflows object store if it doesn't exist
+      if (!db.objectStoreNames.contains(WORKFLOWS_STORE_NAME)) {
+        const workflowStore = db.createObjectStore(WORKFLOWS_STORE_NAME, { keyPath: 'id' })
+
+        // Create indexes for sorting
+        workflowStore.createIndex('updatedAt', 'updatedAt', { unique: false })
+        workflowStore.createIndex('createdAt', 'createdAt', { unique: false })
+        workflowStore.createIndex('name', 'name', { unique: false })
+
+        console.log('[IndexedDB] ✅ Custom workflows object store created')
+      } else {
+        console.log('[IndexedDB] Custom workflows object store already exists')
       }
     }
   })
@@ -300,6 +327,233 @@ export const getStorageInfo = async () => {
 }
 
 /**
+ * Get all custom workflows from IndexedDB
+ * 从 IndexedDB 获取所有自定义工作流
+ */
+export const getAllCustomWorkflows = async () => {
+  try {
+    const db = await openDB()
+
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([WORKFLOWS_STORE_NAME], 'readonly')
+      const objectStore = transaction.objectStore(WORKFLOWS_STORE_NAME)
+      const request = objectStore.getAll()
+
+      request.onerror = () => {
+        console.error('[IndexedDB] Failed to get custom workflows:', request.error)
+        reject(request.error)
+      }
+
+      request.onsuccess = () => {
+        resolve(request.result || [])
+      }
+    })
+  } catch (error) {
+    console.error('[IndexedDB] getAllCustomWorkflows error:', error)
+    return []
+  }
+}
+
+/**
+ * Get a single custom workflow by ID
+ * 根据 ID 获取单个自定义工作流
+ */
+export const getCustomWorkflow = async (id) => {
+  try {
+    const db = await openDB()
+
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([WORKFLOWS_STORE_NAME], 'readonly')
+      const objectStore = transaction.objectStore(WORKFLOWS_STORE_NAME)
+      const request = objectStore.get(id)
+
+      request.onerror = () => {
+        console.error('[IndexedDB] Failed to get custom workflow:', request.error)
+        reject(request.error)
+      }
+
+      request.onsuccess = () => {
+        resolve(request.result || null)
+      }
+    })
+  } catch (error) {
+    console.error('[IndexedDB] getCustomWorkflow error:', error)
+    return null
+  }
+}
+
+/**
+ * Save a custom workflow to IndexedDB
+ * 保存自定义工作流到 IndexedDB
+ */
+export const saveCustomWorkflow = async (workflow) => {
+  try {
+    const db = await openDB()
+
+    // Convert to plain object to avoid DataCloneError
+    const plainWorkflow = toPlainObject(workflow)
+
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([WORKFLOWS_STORE_NAME], 'readwrite')
+      const objectStore = transaction.objectStore(WORKFLOWS_STORE_NAME)
+      const request = objectStore.put(plainWorkflow)
+
+      request.onerror = () => {
+        console.error('[IndexedDB] Failed to save custom workflow:', request.error)
+        reject(request.error)
+      }
+
+      request.onsuccess = () => {
+        console.log('[IndexedDB] Custom workflow saved successfully:', workflow.id)
+        resolve(true)
+      }
+    })
+  } catch (error) {
+    console.error('[IndexedDB] saveCustomWorkflow error:', error)
+    throw error
+  }
+}
+
+/**
+ * Save multiple custom workflows in a batch
+ * 批量保存多个自定义工作流
+ */
+export const saveCustomWorkflows = async (workflows) => {
+  try {
+    const db = await openDB()
+
+    // Convert all workflows to plain objects
+    const plainWorkflows = workflows.map(w => toPlainObject(w))
+
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([WORKFLOWS_STORE_NAME], 'readwrite')
+      const objectStore = transaction.objectStore(WORKFLOWS_STORE_NAME)
+
+      let completed = 0
+      let hasError = false
+
+      plainWorkflows.forEach(workflow => {
+        const request = objectStore.put(workflow)
+
+        request.onerror = () => {
+          console.error('[IndexedDB] Failed to save workflow:', workflow.id, request.error)
+          hasError = true
+        }
+
+        request.onsuccess = () => {
+          completed++
+          if (completed === plainWorkflows.length) {
+            if (hasError) {
+              reject(new Error('Some workflows failed to save'))
+            } else {
+              console.log(`[IndexedDB] ${plainWorkflows.length} workflows saved successfully`)
+              resolve(true)
+            }
+          }
+        }
+      })
+
+      // Handle empty array case
+      if (plainWorkflows.length === 0) {
+        resolve(true)
+      }
+    })
+  } catch (error) {
+    console.error('[IndexedDB] saveCustomWorkflows error:', error)
+    throw error
+  }
+}
+
+/**
+ * Delete a custom workflow from IndexedDB
+ * 从 IndexedDB 删除自定义工作流
+ */
+export const deleteCustomWorkflow = async (id) => {
+  try {
+    const db = await openDB()
+
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([WORKFLOWS_STORE_NAME], 'readwrite')
+      const objectStore = transaction.objectStore(WORKFLOWS_STORE_NAME)
+      const request = objectStore.delete(id)
+
+      request.onerror = () => {
+        console.error('[IndexedDB] Failed to delete custom workflow:', request.error)
+        reject(request.error)
+      }
+
+      request.onsuccess = () => {
+        console.log('[IndexedDB] Custom workflow deleted successfully:', id)
+        resolve(true)
+      }
+    })
+  } catch (error) {
+    console.error('[IndexedDB] deleteCustomWorkflow error:', error)
+    throw error
+  }
+}
+
+/**
+ * Clear all custom workflows from IndexedDB
+ * 清空 IndexedDB 中的所有自定义工作流
+ */
+export const clearAllCustomWorkflows = async () => {
+  try {
+    const db = await openDB()
+
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([WORKFLOWS_STORE_NAME], 'readwrite')
+      const objectStore = transaction.objectStore(WORKFLOWS_STORE_NAME)
+      const request = objectStore.clear()
+
+      request.onerror = () => {
+        console.error('[IndexedDB] Failed to clear custom workflows:', request.error)
+        reject(request.error)
+      }
+
+      request.onsuccess = () => {
+        console.log('[IndexedDB] All custom workflows cleared')
+        resolve(true)
+      }
+    })
+  } catch (error) {
+    console.error('[IndexedDB] clearAllCustomWorkflows error:', error)
+    throw error
+  }
+}
+
+/**
+ * Migrate custom workflows from localStorage to IndexedDB
+ * 从 localStorage 迁移自定义工作流到 IndexedDB
+ */
+export const migrateCustomWorkflowsFromLocalStorage = async () => {
+  try {
+    const STORAGE_KEY = 'dream-canvas-custom-workflows'
+    const stored = localStorage.getItem(STORAGE_KEY)
+
+    if (!stored) {
+      console.log('[IndexedDB] No custom workflows in localStorage to migrate')
+      return false
+    }
+
+    const workflows = JSON.parse(stored)
+    console.log(`[IndexedDB] Migrating ${workflows.length} custom workflows from localStorage to IndexedDB...`)
+
+    await saveCustomWorkflows(workflows)
+
+    console.log('[IndexedDB] Custom workflows migration completed successfully')
+
+    // Keep localStorage as backup for now (don't delete)
+    // Users can manually clear it later if needed
+
+    return true
+  } catch (error) {
+    console.error('[IndexedDB] Custom workflows migration failed:', error)
+    throw error
+  }
+}
+
+/**
  * Migrate data from localStorage to IndexedDB
  * 从 localStorage 迁移数据到 IndexedDB
  */
@@ -371,6 +625,42 @@ let isInitialized = false
 let initPromise = null
 
 /**
+ * Check if custom workflows migration is needed
+ * 检查是否需要迁移自定义工作流
+ */
+export const needsWorkflowMigration = async () => {
+  try {
+    const STORAGE_KEY = 'dream-canvas-custom-workflows'
+    const MIGRATION_KEY = 'ai-canvas-workflows-indexeddb-migrated'
+
+    // Check if already migrated
+    const migrated = localStorage.getItem(MIGRATION_KEY)
+    if (migrated) {
+      return false
+    }
+
+    // Check if localStorage has data
+    const stored = localStorage.getItem(STORAGE_KEY)
+    if (!stored) {
+      return false
+    }
+
+    // Check if IndexedDB is empty
+    const workflows = await getAllCustomWorkflows()
+    if (workflows.length > 0) {
+      // IndexedDB has data, mark as migrated
+      localStorage.setItem(MIGRATION_KEY, 'true')
+      return false
+    }
+
+    return true
+  } catch (error) {
+    console.error('[IndexedDB] needsWorkflowMigration check failed:', error)
+    return false
+  }
+}
+
+/**
  * Initialize IndexedDB and perform migration if needed
  * 初始化 IndexedDB 并在需要时执行迁移
  */
@@ -394,17 +684,29 @@ export const initIndexedDB = async () => {
       await openDB()
       console.log('IndexedDB initialized')
 
-      // Check and perform migration
+      let migrationPerformed = false
+
+      // Check and perform projects migration
       if (await needsMigration()) {
-        console.log('Migration needed, starting...')
+        console.log('Projects migration needed, starting...')
         await migrateFromLocalStorage()
         localStorage.setItem('ai-canvas-indexeddb-migrated', 'true')
-        console.log('Migration completed')
+        console.log('Projects migration completed')
+        migrationPerformed = true
+      }
 
-        // Show success message to user
-        if (typeof window !== 'undefined' && window.$message) {
-          window.$message.success('已迁移到 IndexedDB 存储，支持更大容量！')
-        }
+      // Check and perform custom workflows migration
+      if (await needsWorkflowMigration()) {
+        console.log('Custom workflows migration needed, starting...')
+        await migrateCustomWorkflowsFromLocalStorage()
+        localStorage.setItem('ai-canvas-workflows-indexeddb-migrated', 'true')
+        console.log('Custom workflows migration completed')
+        migrationPerformed = true
+      }
+
+      // Show success message to user if any migration was performed
+      if (migrationPerformed && typeof window !== 'undefined' && window.$message) {
+        window.$message.success('已迁移到 IndexedDB 存储，支持更大容量！')
       }
 
       isInitialized = true
@@ -433,8 +735,16 @@ export default {
   saveProjects,
   deleteProject,
   clearAllProjects,
+  getAllCustomWorkflows,
+  getCustomWorkflow,
+  saveCustomWorkflow,
+  saveCustomWorkflows,
+  deleteCustomWorkflow,
+  clearAllCustomWorkflows,
   getStorageInfo,
   migrateFromLocalStorage,
+  migrateCustomWorkflowsFromLocalStorage,
   needsMigration,
+  needsWorkflowMigration,
   initIndexedDB
 }
