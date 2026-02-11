@@ -10,9 +10,13 @@ import './style.css'
 import { initProviders } from './stores/providers'
 import { initMigration } from './utils/migration'
 import { autoMigrateWithUI } from './utils/dataMigration'
+import { initCustomWorkflows } from './stores/customWorkflows'
 
 // Initialize providers first
 initProviders()
+
+// Initialize custom workflows from localStorage
+initCustomWorkflows()
 
 // Then run migration if needed
 initMigration()
