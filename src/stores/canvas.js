@@ -174,12 +174,12 @@ export const removeNode = (id) => {
 export const duplicateNode = (id) => {
   const sourceNode = nodes.value.find(node => node.id === id)
   if (!sourceNode) return null
-  
+
   const newId = getNodeId()
-  
+
   // Calculate max z-index | 计算最大层级
   const maxZIndex = Math.max(0, ...nodes.value.map(n => n.zIndex || 0))
-  
+
   const newNode = {
     id: newId,
     type: sourceNode.type,
@@ -191,6 +191,19 @@ export const duplicateNode = (id) => {
     zIndex: maxZIndex + 1
   }
   nodes.value = [...nodes.value, newNode]
+
+  // Duplicate input edges only | 仅复制输入边
+  const inputEdges = edges.value.filter(edge => edge.target === id)
+
+  inputEdges.forEach(edge => {
+    const newEdge = {
+      ...edge,
+      id: `edge_${edge.source}_${newId}`,
+      target: newId
+    }
+    edges.value = [...edges.value, newEdge]
+  })
+
   saveToHistory() // Save after duplicating node | 复制节点后保存
   return newId
 }
